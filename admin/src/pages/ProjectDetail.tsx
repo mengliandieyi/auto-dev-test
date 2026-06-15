@@ -99,6 +99,7 @@ export default function ProjectDetail() {
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
   const [expandedJob, setExpandedJob] = useState<Job | null>(null);
   const [loadingJobId, setLoadingJobId] = useState<string | null>(null);
+  const [jobMessage, setJobMessage] = useState('');
 
   const frontendSkills = useMemo(
     () => skills.filter((s) => s.layer === 'frontend' || s.layer === 'fullstack'),
@@ -395,7 +396,27 @@ export default function ProjectDetail() {
       <div className="card">
         <div className="card-head">
           <h2 className="card-title">执行记录</h2>
+          {jobs.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={busy}
+              onClick={async () => {
+                setJobMessage('');
+                try {
+                  const r = await api.pruneJobs(50, projectId);
+                  setJobMessage(r.removed > 0 ? `已清理 ${r.removed} 条历史任务` : '无需清理');
+                  load();
+                } catch (e) {
+                  setError(String(e));
+                }
+              }}
+            >
+              清理历史
+            </button>
+          )}
         </div>
+        {jobMessage && <div className="alert alert--success">{jobMessage}</div>}
         <div className="table-wrap">
           <table className="data-table">
             <thead>

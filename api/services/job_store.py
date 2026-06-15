@@ -38,6 +38,9 @@ def init_jobs_db(db_path: Path = JOBS_DB) -> None:
         "CREATE INDEX IF NOT EXISTS idx_pipeline_jobs_status "
         "ON pipeline_jobs(status, created_at)"
     )
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(pipeline_jobs)")}
+    if "events_json" not in cols:
+        conn.execute("ALTER TABLE pipeline_jobs ADD COLUMN events_json TEXT")
     conn.commit()
     conn.close()
     try:
@@ -171,15 +174,21 @@ def recover_stale_running_jobs() -> int:
     return count
 
 
-def prune_jobs(*, keep: int = 100) -> int:
+def prune_jobs(*, keep: int = 100, project_id: Optional[str] = None) -> int:
     """删除较早的终态任务记录，保留最近 keep 条（不删 PENDING/RUNNING）。"""
     init_jobs_db()
     keep = max(1, min(int(keep), 1000))
     conn = sqlite3.connect(JOBS_DB, timeout=30)
     conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        "SELECT id, log_path, status FROM pipeline_jobs ORDER BY created_at DESC"
-    ).fetchall()
+    if project_id:
+        rows = conn.execute(
+            "SELECT id, log_path, status FROM pipeline_jobs WHERE project_id = ? ORDER BY created_at DESC",
+            (project_id,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT id, log_path, status FROM pipeline_jobs ORDER BY created_at DESC"
+        ).fetchall()
     conn.close()
     if len(rows) <= keep:
         return 0
@@ -246,6 +255,47 @@ def read_job_log_tail(job_id: str) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+def _read_job_log_full(job_id: str) -> str:
+    job = get_job(job_id)
+    if not job or not job.get("log_path"):
+        return ""
+    log_path = Path(job["log_path"])
+    if not log_path.exists():
+        return ""
+    return log_path.read_text(encoding="utf-8", errors="replace")
+
+
+def sync_job_events(job_id: str) -> list[dict[str, Any]]:
+    """从完整日志解析 job-event 并持久化（避免 log_tail 截断丢失）。"""
+    from job_events import parse_job_events
+
+    events = parse_job_events(_read_job_log_full(job_id))
+    conn = sqlite3.connect(JOBS_DB, timeout=30)
+    conn.execute(
+        "UPDATE pipeline_jobs SET events_json = ? WHERE id = ?",
+        (json.dumps(events, ensure_ascii=False), job_id),
+    )
+    conn.commit()
+    conn.close()
+    return events
+
+
+def read_job_events(job_id: str) -> list[dict[str, Any]]:
+    job = get_job(job_id)
+    if not job:
+        return []
+    raw = job.get("events_json")
+    if raw:
+        try:
+            data = json.loads(raw)
+            if isinstance(data, list):
+                return data
+        except json.JSONDecodeError:
+            pass
+    events = sync_job_events(job_id)
+    return events
+
+
 def _row_to_job(row: sqlite3.Row) -> Dict[str, Any]:
     args = {}
     if row["args_json"]:
@@ -264,4 +314,5 @@ def _row_to_job(row: sqlite3.Row) -> Dict[str, Any]:
         "finished_at": row["finished_at"],
         "exit_code": row["exit_code"],
         "log_path": row["log_path"],
+        "events_json": row["events_json"] if "events_json" in row.keys() else None,
     }

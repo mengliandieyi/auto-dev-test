@@ -88,6 +88,7 @@ export default function HealPanel({ projectId, prdId }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const [showAllRuns, setShowAllRuns] = useState(false);
   const detailRef = useRef<HTMLTableRowElement | null>(null);
 
   const load = useCallback(() => {
@@ -115,6 +116,7 @@ export default function HealPanel({ projectId, prdId }: Props) {
   }, [activeId]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { setShowAllRuns(false); }, [projectId, prdId]);
 
   useEffect(() => {
     if (!runs.some((r) => r.status === 'RUNNING')) return;
@@ -164,6 +166,8 @@ export default function HealPanel({ projectId, prdId }: Props) {
       setBusy(false);
     }
   };
+
+  const visibleRuns = showAllRuns ? runs : runs.slice(0, 5);
 
   return (
     <div className="card heal-panel" data-testid="heal-panel">
@@ -243,6 +247,20 @@ export default function HealPanel({ projectId, prdId }: Props) {
         {runs.length === 0 ? (
           <p className="empty">暂无记录。请先运行测试，再点「分析失败原因」。</p>
         ) : (
+          <>
+          {runs.length > 5 && (
+            <p className="muted heal-history-hint">
+              {showAllRuns ? `共 ${runs.length} 条` : `显示最近 5 条，共 ${runs.length} 条`}
+              {' · '}
+              <button
+                type="button"
+                className="btn btn-ghost btn-inline"
+                onClick={() => setShowAllRuns((v) => !v)}
+              >
+                {showAllRuns ? '收起' : '显示全部'}
+              </button>
+            </p>
+          )}
           <div className="table-wrap">
             <table className="data-table heal-table">
               <thead>
@@ -254,7 +272,7 @@ export default function HealPanel({ projectId, prdId }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {runs.map((r) => (
+                {visibleRuns.map((r) => (
                   <Fragment key={r.id}>
                     <tr className={activeId === r.id ? 'heal-row--active' : ''}>
                       <td className="muted">{formatUtcTime(r.created_at)}</td>
@@ -283,6 +301,7 @@ export default function HealPanel({ projectId, prdId }: Props) {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

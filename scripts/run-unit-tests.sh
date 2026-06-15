@@ -19,6 +19,7 @@ python3 -m unittest \
   tests.test_prd_project_binding \
   tests.test_job_cancel \
   tests.test_job_events \
+  tests.test_job_event_persistence \
   tests.test_job_insights \
   tests.test_project_settings \
   tests.test_create_project \

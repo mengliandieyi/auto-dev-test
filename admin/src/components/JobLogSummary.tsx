@@ -1,13 +1,18 @@
 import { useMemo } from 'react';
 import { Job } from '../api/client';
-import { jobEventLabel, parseJobEvents, stripJobEventsFromLog } from '../utils/jobEvents';
+import { JobEvent, jobEventLabel, parseJobEvents, stripJobEventsFromLog } from '../utils/jobEvents';
 
 type Props = {
-  job: Pick<Job, 'log_tail' | 'failure_hint' | 'status'>;
+  job: Pick<Job, 'log_tail' | 'failure_hint' | 'status' | 'events'>;
 };
 
 export function JobLogSummary({ job }: Props) {
-  const events = useMemo(() => parseJobEvents(job.log_tail || ''), [job.log_tail]);
+  const events = useMemo(() => {
+    if (job.events && job.events.length > 0) {
+      return job.events as JobEvent[];
+    }
+    return parseJobEvents(job.log_tail || '');
+  }, [job.events, job.log_tail]);
   const logText = useMemo(() => stripJobEventsFromLog(job.log_tail || ''), [job.log_tail]);
 
   return (

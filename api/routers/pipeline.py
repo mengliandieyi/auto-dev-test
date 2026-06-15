@@ -122,13 +122,19 @@ def get_job(job_id: str):
         **_to_job_response(job).model_dump(),
         log_tail=log_tail,
         failure_hint=hint or "",
+        events=job_store.read_job_events(job_id),
     )
 
 
 @router.post("/jobs/prune")
-def prune_jobs(keep: int = Query(100, ge=1, le=1000)):
-    removed = job_store.prune_jobs(keep=keep)
-    return {"removed": removed, "keep": keep}
+def prune_jobs(
+    keep: int = Query(100, ge=1, le=1000),
+    project_id: Optional[str] = Query(None),
+):
+    if project_id:
+        validate_project_id(project_id)
+    removed = job_store.prune_jobs(keep=keep, project_id=project_id)
+    return {"removed": removed, "keep": keep, "project_id": project_id}
 
 
 @router.get("/jobs")
