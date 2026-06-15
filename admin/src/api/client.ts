@@ -26,6 +26,7 @@ export type Job = {
   exit_code?: number;
   args?: Record<string, unknown>;
   log_tail?: string;
+  failure_hint?: string;
 };
 export type Report = { prd_id: string; kind: string; updated_at: string; path: string };
 export type HealRun = {
@@ -139,6 +140,10 @@ export const api = {
   jobs: (projectId?: string) =>
     request<Job[]>(`/pipeline/jobs${projectId ? `?project_id=${projectId}` : ''}`),
   job: (jobId: string) => request<Job>(`/pipeline/jobs/${jobId}`),
+  cancelJob: (jobId: string) =>
+    request<Job>(`/pipeline/jobs/${jobId}/cancel`, { method: 'POST' }),
+  pruneJobs: (keep = 100) =>
+    request<{ removed: number; keep: number }>(`/pipeline/jobs/prune?keep=${keep}`, { method: 'POST' }),
   pipeline: (action: string, body: Record<string, unknown>) =>
     request<Job>(`/pipeline/${action}`, { method: 'POST', body: JSON.stringify(body) }),
   projectYaml: (projectId: string) =>

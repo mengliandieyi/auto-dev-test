@@ -46,6 +46,14 @@ def export_playwright_runtime(repo_root: Path | None = None) -> Path:
     return out
 
 
+def sync_playwright_runtime() -> None:
+    """导出 Playwright 运行时配置（新建/保存项目、API 启动、跑 E2E 前调用）。"""
+    try:
+        export_playwright_runtime(ROOT)
+    except Exception:
+        pass
+
+
 if __name__ == "__main__":
     path = export_playwright_runtime()
     print(f"Wrote {path}")

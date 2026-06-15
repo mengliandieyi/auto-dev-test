@@ -74,6 +74,7 @@ function statusBadge(status: string) {
   const cls =
     status === 'SUCCESS' ? 'badge-success' :
     status === 'FAILED' ? 'badge-failed' :
+    status === 'CANCELLED' ? 'badge-failed' :
     status === 'RUNNING' ? 'badge-running' : 'badge-pending';
   return <span className={`badge ${cls}`}>{status}</span>;
 }
@@ -138,7 +139,7 @@ export default function ProjectDetail() {
       try {
         const job = await api.job(jobId);
         setActiveJob(job);
-        if (job.status === 'SUCCESS' || job.status === 'FAILED') {
+        if (job.status === 'SUCCESS' || job.status === 'FAILED' || job.status === 'CANCELLED') {
           stopPolling();
           setBusy(false);
           load();
@@ -181,6 +182,18 @@ export default function ProjectDetail() {
     } catch (e) {
       setError(String(e));
       setBusy(false);
+    }
+  };
+
+  const cancelActiveJob = async () => {
+    if (!activeJob) return;
+    try {
+      const job = await api.cancelJob(activeJob.id);
+      setActiveJob(job);
+      stopPolling();
+      setBusy(false);
+    } catch (e) {
+      setError(String(e));
     }
   };
 
@@ -308,8 +321,21 @@ export default function ProjectDetail() {
             <div className="job-log-head">
               <strong>{jobLabel(activeJob)}</strong>
               {statusBadge(activeJob.status)}
+              {(activeJob.status === 'PENDING' || activeJob.status === 'RUNNING') && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-danger-text"
+                  onClick={cancelActiveJob}
+                  .disabled={busy}
+                >
+                  取消
+                </button>
+              )}
             </div>
             <div className="log-box">{activeJob.log_tail || '…'}</div>
+            {activeJob.failure_hint && (
+              <p className="job-failure-hint muted">{activeJob.failure_hint}</p>
+            )}
           </div>
         )}
       </div>

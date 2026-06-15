@@ -171,6 +171,68 @@ def recover_stale_running_jobs() -> int:
     return count
 
 
+def prune_jobs(*, keep: int = 100) -> int:
+    """删除较早的终态任务记录，保留最近 keep 条（不删 PENDING/RUNNING）。"""
+    init_jobs_db()
+    keep = max(1, min(int(keep), 1000))
+    conn = sqlite3.connect(JOBS_DB, timeout=30)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        "SELECT id, log_path, status FROM pipeline_jobs ORDER BY created_at DESC"
+    ).fetchall()
+    conn.close()
+    if len(rows) <= keep:
+        return 0
+    terminal = {"SUCCESS", "FAILED", "CANCELLED"}
+    to_delete = [r for r in rows[keep:] if r["status"] in terminal]
+    if not to_delete:
+        return 0
+    conn = sqlite3.connect(JOBS_DB, timeout=30)
+    ids = [r["id"] for r in to_delete]
+    placeholders = ",".join("?" * len(ids))
+    conn.execute(f"DELETE FROM pipeline_jobs WHERE id IN ({placeholders})", ids)
+    conn.commit()
+    conn.close()
+    for r in to_delete:
+        log_path = r["log_path"]
+        if log_path:
+            try:
+                Path(log_path).unlink(missing_ok=True)
+            except OSError:
+                pass
+    return len(ids)
+
+
+def try_mark_cancelled(job_id: str) -> bool:
+    """将 PENDING / RUNNING 任务标为 CANCELLED；已为终态则返回 False。"""
+    init_jobs_db()
+    conn = sqlite3.connect(JOBS_DB, timeout=30)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute("SELECT * FROM pipeline_jobs WHERE id = ?", (job_id,)).fetchone()
+    if not row:
+        conn.close()
+        return False
+    if row["status"] not in ("PENDING", "RUNNING"):
+        conn.close()
+        return False
+    conn.execute(
+        "UPDATE pipeline_jobs SET status = 'CANCELLED', finished_at = ?, exit_code = -1 WHERE id = ?",
+        (_now(), job_id),
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
+def append_job_log(job_id: str, message: str) -> None:
+    job = get_job(job_id)
+    if not job or not job.get("log_path"):
+        return
+    log_path = Path(job["log_path"])
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(message if message.endswith("\n") else message + "\n")
+
+
 def read_job_log_tail(job_id: str) -> str:
     job = get_job(job_id)
     if not job or not job.get("log_path"):

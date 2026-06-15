@@ -1,9 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
+import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
 const repoRoot = path.join(__dirname, '..');
 const reportDir = process.env.PLAYWRIGHT_REPORT_DIR || path.join(repoRoot, 'reports/project-a');
+const runtimePath = path.join(__dirname, 'playwright.runtime.json');
 
 type RuntimeProject = {
   name: string;
@@ -16,37 +18,18 @@ type RuntimeProject = {
   };
 };
 
-function defaultProjects(): RuntimeProject[] {
-  return [
-    {
-      name: 'project-a',
-      testDir: 'tests/generated/project-a/e2e',
-      baseURL: 'http://127.0.0.1:4173',
-      webServer: {
-        command: 'npx serve tests/fixtures/mock-e2e -l 4173',
-        url: 'http://127.0.0.1:4173/',
-        reuseExistingServer: !process.env.CI,
-      },
-    },
-    {
-      name: 'project-b',
-      testDir: 'tests/generated/project-b/e2e',
-      baseURL: 'http://127.0.0.1:4174',
-    },
-  ];
+function ensureRuntimeFile(): void {
+  if (fs.existsSync(runtimePath)) return;
+  execSync('python3 playwright_runtime.py', { cwd: repoRoot, stdio: 'pipe' });
 }
 
 function loadRuntimeProjects(): RuntimeProject[] {
-  const runtimePath = path.join(__dirname, 'playwright.runtime.json');
-  if (!fs.existsSync(runtimePath)) {
-    return defaultProjects();
+  ensureRuntimeFile();
+  const data = JSON.parse(fs.readFileSync(runtimePath, 'utf-8')) as { projects?: RuntimeProject[] };
+  if (!data.projects?.length) {
+    throw new Error('playwright.runtime.json has no projects; check config/projects/*.yaml');
   }
-  try {
-    const data = JSON.parse(fs.readFileSync(runtimePath, 'utf-8')) as { projects?: RuntimeProject[] };
-    return data.projects?.length ? data.projects : defaultProjects();
-  } catch {
-    return defaultProjects();
-  }
+  return data.projects;
 }
 
 function envBaseUrl(projectName: string, fallback: string): string {

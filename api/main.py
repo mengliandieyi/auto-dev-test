@@ -12,6 +12,8 @@ from api.services import job_runner, job_store
 import sys
 sys.path.insert(0, str(REPO_ROOT))
 from env_store import ensure_env_loaded  # noqa: E402
+from playwright_runtime import sync_playwright_runtime  # noqa: E402
+from version import VERSION  # noqa: E402
 
 
 @asynccontextmanager
@@ -19,6 +21,8 @@ async def lifespan(app: FastAPI):
     ensure_env_loaded()
     job_store.init_jobs_db()
     job_store.recover_stale_running_jobs()
+    sync_playwright_runtime()
+    job_runner.start_worker_on_startup()
     yield
     await job_runner.shutdown_workers()
 
@@ -26,7 +30,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="auto-dev-test API",
     description="PRD 驱动测试平台 — Web 管理后台",
-    version="4.4.2",
+    version=VERSION,
     lifespan=lifespan,
 )
 

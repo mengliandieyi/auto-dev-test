@@ -89,6 +89,10 @@ def create_project(project_id: str, project_name: str, base_url: str) -> Dict[st
     text = yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False)
     config_path.write_text(text, encoding="utf-8")
 
+    from playwright_runtime import sync_playwright_runtime
+
+    sync_playwright_runtime()
+
     return {
         "id": project_id,
         "name": name,

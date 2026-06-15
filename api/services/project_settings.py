@@ -174,4 +174,7 @@ def write_project_settings_form(project_id: str, body: Dict[str, Any]) -> Dict[s
 
     text = yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False)
     write_project_yaml_text(project_id, text)
+    from playwright_runtime import sync_playwright_runtime
+
+    sync_playwright_runtime()
     return read_project_settings_form(project_id)

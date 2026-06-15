@@ -6,6 +6,7 @@ function statusBadge(status: string) {
   const cls =
     status === 'SUCCESS' ? 'badge-success' :
     status === 'FAILED' ? 'badge-failed' :
+    status === 'CANCELLED' ? 'badge-failed' :
     status === 'RUNNING' ? 'badge-running' : 'badge-pending';
   return <span className={`badge ${cls}`}>{status}</span>;
 }
@@ -38,12 +39,27 @@ export default function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
-  useEffect(() => {
+  const load = () => {
     Promise.all([api.projects(), api.jobs()])
       .then(([p, j]) => { setProjects(p); setJobs(j); })
       .catch((e) => setError(String(e)));
-  }, []);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const pruneHistory = async () => {
+    setError('');
+    setMessage('');
+    try {
+      const r = await api.pruneJobs(100);
+      setMessage(`已清理 ${r.removed} 条历史任务`);
+      load();
+    } catch (e) {
+      setError(String(e));
+    }
+  };
 
   const stats = useMemo(() => {
     const success = jobs.filter((j) => j.status === 'SUCCESS').length;
@@ -58,6 +74,7 @@ export default function Dashboard() {
       </header>
 
       {error && <div className="alert alert--danger">{error}</div>}
+      {message && <div className="alert alert--success">{message}</div>}
 
       <section className="stat-row">
         <div className="stat-card">
@@ -109,7 +126,11 @@ export default function Dashboard() {
         <section className="card">
         <div className="card-head">
           <h2>最近任务</h2>
-          <span className="muted">异步队列 · Worker ×2</span>
+          <div className="page-actions">
+            <button type="button" className="btn btn-ghost" onClick={pruneHistory}>
+              清理历史
+            </button>
+          </div>
         </div>
         {jobs.length === 0 ? (
           <p className="empty">暂无任务记录，进入项目详情触发流水线。</p>

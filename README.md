@@ -1,6 +1,6 @@
 # auto-dev-test
 
-**规格仓库（spec-only）** · 文档版本 **4.4.2**
+**规格仓库（spec-only）** · 文档版本 **4.4.2**（单一来源见根目录 `VERSION`，`python3 scripts/sync_version.py` 同步 npm 包版本）
 
 | 文档 | 职责 |
 |------|------|

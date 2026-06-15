@@ -96,13 +96,39 @@ async def pipeline_dev(body: PipelineRequest):
     return await _enqueue("dev", body)
 
 
+@router.post("/jobs/{job_id}/cancel", response_model=JobResponse)
+async def cancel_job(job_id: str):
+    try:
+        job = await job_runner.cancel_job(job_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return _to_job_response(job)
+
+
 @router.get("/jobs/{job_id}", response_model=JobDetailResponse)
 def get_job(job_id: str):
+    from api.services.job_insights import classify_job_failure
+
     job = job_store.get_job(job_id)
     if not job:
         raise HTTPException(404, "Job not found")
     log_tail = job_store.read_job_log_tail(job_id)
-    return JobDetailResponse(**_to_job_response(job).model_dump(), log_tail=log_tail)
+    hint = classify_job_failure(
+        log_tail,
+        status=job.get("status", ""),
+        exit_code=job.get("exit_code"),
+    )
+    return JobDetailResponse(
+        **_to_job_response(job).model_dump(),
+        log_tail=log_tail,
+        failure_hint=hint or "",
+    )
+
+
+@router.post("/jobs/prune")
+def prune_jobs(keep: int = Query(100, ge=1, le=1000)):
+    removed = job_store.prune_jobs(keep=keep)
+    return {"removed": removed, "keep": keep}
 
 
 @router.get("/jobs")

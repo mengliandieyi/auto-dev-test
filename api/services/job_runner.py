@@ -83,10 +83,38 @@ async def _worker_loop() -> None:
         asyncio.create_task(_run_job(job))
 
 
+async def cancel_job(job_id: str) -> Dict[str, Any]:
+    job = job_store.get_job(job_id)
+    if not job:
+        raise ValueError("Job not found")
+    if job["status"] not in ("PENDING", "RUNNING"):
+        raise ValueError(f"Job already {job['status']}")
+
+    if job["status"] == "RUNNING":
+        proc = _running_procs.get(job_id)
+        if proc:
+            await _terminate_proc(proc)
+            _running_procs.pop(job_id, None)
+
+    if not job_store.try_mark_cancelled(job_id):
+        current = job_store.get_job(job_id)
+        if current and current["status"] == "CANCELLED":
+            return current
+        raise ValueError("Job could not be cancelled")
+
+    job_store.append_job_log(job_id, "[cancelled] 用户取消任务")
+    updated = job_store.get_job(job_id)
+    assert updated is not None
+    return updated
+
+
 async def _run_job(job: Dict[str, Any]) -> None:
     sem = _get_semaphore()
     async with sem:
         job_id = job["id"]
+        current = job_store.get_job(job_id)
+        if not current or current["status"] == "CANCELLED":
+            return
         log_path = job.get("log_path")
         proc: Optional[asyncio.subprocess.Process] = None
         try:
@@ -103,6 +131,9 @@ async def _run_job(job: Dict[str, Any]) -> None:
                 )
                 _running_procs[job_id] = proc
                 exit_code = await proc.wait()
+            final = job_store.get_job(job_id)
+            if final and final["status"] == "CANCELLED":
+                return
             status = "SUCCESS" if exit_code == 0 else "FAILED"
             job_store.update_job_status(
                 job_id, status, finished_at=job_store._now(), exit_code=exit_code

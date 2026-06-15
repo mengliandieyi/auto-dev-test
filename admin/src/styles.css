@@ -1704,6 +1704,15 @@ th { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-
   font-size: 0.9rem;
 }
 
+.job-log-head .btn {
+  margin-left: auto;
+}
+
+.job-failure-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+}
+
 .heal-intro {
   margin: -0.25rem 0 1rem;
   font-size: 0.875rem;

@@ -37,6 +37,7 @@ class JobResponse(BaseModel):
 
 class JobDetailResponse(JobResponse):
     log_tail: str = ""
+    failure_hint: str = ""
 
 
 class TextContentRequest(BaseModel):
