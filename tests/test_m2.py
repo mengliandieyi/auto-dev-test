@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 import os
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
 
 from content_fingerprint import prd_content_hash, scan_merge_conflicts
 from spec_idempotency import decide_generation, is_version_upgrade

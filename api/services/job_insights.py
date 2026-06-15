@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import Optional
 
+from job_events import parse_job_events
+
 _PATTERNS = (
     (re.compile(r"CONTENT_DRIFT", re.I), "PRD 正文变更未 bump version（CI 阻断）"),
     (re.compile(r"MERGE_CONFLICT", re.I), "文件含 Git 合并冲突标记"),
@@ -20,11 +22,30 @@ _PATTERNS = (
 )
 
 
+def _hint_from_job_events(log_tail: str) -> Optional[str]:
+    events = parse_job_events(log_tail)
+    if not events:
+        return None
+    for ev in reversed(events):
+        if ev.get("event") == "error":
+            message = str(ev.get("message") or "").strip()
+            if message:
+                return f"执行异常：{message}"
+        if ev.get("event") == "finish":
+            exit_code = ev.get("exit_code")
+            if exit_code is not None and exit_code != 0:
+                return f"命令退出码 {exit_code}"
+    return None
+
+
 def classify_job_failure(log_tail: str, *, status: str = "", exit_code: Optional[int] = None) -> Optional[str]:
     if status == "CANCELLED":
         return "用户取消"
     if status != "FAILED" and exit_code in (None, 0):
         return None
+    event_hint = _hint_from_job_events(log_tail)
+    if event_hint:
+        return event_hint
     text = log_tail or ""
     for pattern, label in _PATTERNS:
         if pattern.search(text):

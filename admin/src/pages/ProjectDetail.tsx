@@ -6,6 +6,7 @@ import ArtifactsPanel from '../components/ArtifactsPanel';
 import { MarkdownPreview } from '../components/MarkdownWorkspace';
 import { ActionButton } from '../components/HelpTip';
 import Select from '../components/Select';
+import { jobEventLabel, parseJobEvents, stripJobEventsFromLog } from '../utils/jobEvents';
 
 const COMMAND_LABELS: Record<string, string> = {
   validate: '检查 PRD',
@@ -94,6 +95,15 @@ export default function ProjectDetail() {
   const [devSkillFrontend, setDevSkillFrontend] = useState('');
   const [devSkillBackend, setDevSkillBackend] = useState('');
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const activeJobEvents = useMemo(
+    () => parseJobEvents(activeJob?.log_tail || ''),
+    [activeJob?.log_tail],
+  );
+  const activeJobLogText = useMemo(
+    () => stripJobEventsFromLog(activeJob?.log_tail || ''),
+    [activeJob?.log_tail],
+  );
 
   const frontendSkills = useMemo(
     () => skills.filter((s) => s.layer === 'frontend' || s.layer === 'fullstack'),
@@ -333,7 +343,19 @@ export default function ProjectDetail() {
                 </button>
               )}
             </div>
-            <div className="log-box">{activeJob.log_tail || '…'}</div>
+            {activeJobEvents.length > 0 && (
+              <ol className="job-event-timeline" data-testid="job-event-timeline">
+                {activeJobEvents.map((ev, index) => (
+                  <li
+                    key={`${ev.event}-${index}`}
+                    className={`job-event-chip job-event-chip--${ev.event}`}
+                  >
+                    {jobEventLabel(ev)}
+                  </li>
+                ))}
+              </ol>
+            )}
+            <div className="log-box">{activeJobLogText || activeJob.log_tail || '…'}</div>
             {activeJob.failure_hint && (
               <p className="job-failure-hint muted">{activeJob.failure_hint}</p>
             )}

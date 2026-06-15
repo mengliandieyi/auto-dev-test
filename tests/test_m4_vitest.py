@@ -6,11 +6,10 @@ import json
 import os
 import re
 import subprocess
-import sys
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from bootstrap import ROOT
 
 
 def _case_statuses(report_path: Path) -> dict[str, str]:

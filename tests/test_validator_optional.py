@@ -1,12 +1,9 @@
 """validator 章节匹配（含 `（可选）` 后缀）。"""
 
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "prd-parser"))
 
 from validator import validate  # noqa: E402
 

@@ -1,13 +1,10 @@
 """env_store 凭证读写单测。"""
 
 import os
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
 
 import env_store as es  # noqa: E402
 

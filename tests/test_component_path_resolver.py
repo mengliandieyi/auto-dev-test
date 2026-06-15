@@ -1,12 +1,8 @@
 """component_path_resolver 单元测试"""
 
-import sys
 import unittest
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "prd-parser"))
-
+from bootstrap import ROOT
 from component_path_resolver import find_component_path, resolve_in_test_cases_data  # noqa: E402
 
 FIXTURE_FRONTEND = ROOT / "tests" / "fixtures" / "mock-frontend"

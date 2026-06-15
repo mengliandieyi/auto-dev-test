@@ -1,11 +1,7 @@
 """多模型 ai 配置解析单测。"""
 
-import sys
 import unittest
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
 
 from ai_resolver import (  # noqa: E402
     ai_resolution_summary,

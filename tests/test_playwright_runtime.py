@@ -1,13 +1,9 @@
 """Playwright 运行时配置导出。"""
 
 import json
-import sys
 import unittest
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
+from bootstrap import ROOT
 from playwright_runtime import export_playwright_runtime
 
 

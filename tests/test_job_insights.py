@@ -1,11 +1,6 @@
 """任务洞察与清理单测。"""
 
-import sys
 import unittest
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
 
 from api.services.job_insights import classify_job_failure
 from api.services import job_store
@@ -18,6 +13,16 @@ class TestJobInsights(unittest.TestCase):
 
     def test_classify_cancelled(self):
         self.assertEqual(classify_job_failure("", status="CANCELLED"), "用户取消")
+
+    def test_classify_job_event_error(self):
+        log = '[job-event] {"job_id":"x","event":"error","message":"disk full"}\n'
+        hint = classify_job_failure(log, status="FAILED", exit_code=1)
+        self.assertEqual(hint, "执行异常：disk full")
+
+    def test_classify_job_event_finish_exit_code(self):
+        log = '[job-event] {"job_id":"x","event":"finish","exit_code":2}\n'
+        hint = classify_job_failure(log, status="FAILED", exit_code=2)
+        self.assertEqual(hint, "命令退出码 2")
 
     def test_prune_keeps_recent(self):
         for _ in range(4):
