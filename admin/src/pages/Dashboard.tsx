@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, Job, Project } from '../api/client';
+import { JobLogSummary } from '../components/JobLogSummary';
+import Select from '../components/Select';
+import { dashboardCommandLabel } from '../utils/commandLabels';
+import { formatUtcTime } from '../utils/formatTime';
 
 function statusBadge(status: string) {
   const cls =
@@ -11,61 +15,70 @@ function statusBadge(status: string) {
   return <span className={`badge ${cls}`}>{status}</span>;
 }
 
-function formatTime(raw: string) {
-  const d = new Date(raw.replace(' UTC', 'Z').replace(' ', 'T'));
-  if (Number.isNaN(d.getTime())) return raw;
-  return d.toLocaleString('zh-CN', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function commandLabel(cmd: string) {
-  const map: Record<string, string> = {
-    validate: '校验 PRD',
-    parse: '解析',
-    generate: '生成测试',
-    'generate-pipeline': '生成链路',
-    test: '执行测试',
-    'run-full': '一键全流程',
-    report: '生成报告',
-  };
-  return map[cmd] ?? cmd;
-}
+const JOB_PAGE_SIZE = 15;
 
 export default function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [projectFilter, setProjectFilter] = useState('');
+  const [showAllJobs, setShowAllJobs] = useState(false);
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+  const [expandedJob, setExpandedJob] = useState<Job | null>(null);
+  const [loadingJobId, setLoadingJobId] = useState<string | null>(null);
 
   const load = () => {
-    Promise.all([api.projects(), api.jobs()])
+    Promise.all([api.projects(), api.jobs(undefined, 100)])
       .then(([p, j]) => { setProjects(p); setJobs(j); })
       .catch((e) => setError(String(e)));
   };
 
   useEffect(() => { load(); }, []);
 
+  const filteredJobs = useMemo(() => {
+    if (!projectFilter) return jobs;
+    return jobs.filter((j) => j.project_id === projectFilter);
+  }, [jobs, projectFilter]);
+
+  const visibleJobs = showAllJobs ? filteredJobs : filteredJobs.slice(0, JOB_PAGE_SIZE);
+
   const pruneHistory = async () => {
     setError('');
     setMessage('');
     try {
-      const r = await api.pruneJobs(100);
-      setMessage(`已清理 ${r.removed} 条历史任务`);
+      const r = await api.pruneJobs(100, projectFilter || undefined);
+      const scope = projectFilter ? `项目 ${projectFilter}` : '全部项目';
+      setMessage(r.removed > 0 ? `已清理 ${scope} ${r.removed} 条历史任务` : '无需清理');
       load();
     } catch (e) {
       setError(String(e));
     }
   };
 
+  const toggleJobDetail = async (jobId: string) => {
+    if (expandedJobId === jobId) {
+      setExpandedJobId(null);
+      setExpandedJob(null);
+      return;
+    }
+    setLoadingJobId(jobId);
+    try {
+      const job = await api.job(jobId);
+      setExpandedJob(job);
+      setExpandedJobId(jobId);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoadingJobId(null);
+    }
+  };
+
   const stats = useMemo(() => {
-    const success = jobs.filter((j) => j.status === 'SUCCESS').length;
-    const running = jobs.filter((j) => j.status === 'RUNNING').length;
-    return { success, running, total: jobs.length };
-  }, [jobs]);
+    const success = filteredJobs.filter((j) => j.status === 'SUCCESS').length;
+    const running = filteredJobs.filter((j) => j.status === 'RUNNING').length;
+    return { success, running, total: filteredJobs.length };
+  }, [filteredJobs]);
 
   return (
     <div data-testid="dashboard-summary" className="page">
@@ -126,44 +139,88 @@ export default function Dashboard() {
         <section className="card">
         <div className="card-head">
           <h2>最近任务</h2>
-          <div className="page-actions">
+          <div className="page-actions dashboard-job-filters">
+            <Select
+              value={projectFilter}
+              onChange={(v) => { setProjectFilter(v); setShowAllJobs(false); setExpandedJobId(null); }}
+              placeholder="全部项目"
+              options={[
+                { value: '', label: '全部项目' },
+                ...projects.map((p) => ({ value: p.id, label: p.name || p.id })),
+              ]}
+            />
             <button type="button" className="btn btn-ghost" onClick={pruneHistory}>
               清理历史
             </button>
           </div>
         </div>
-        {jobs.length === 0 ? (
+        {filteredJobs.length === 0 ? (
           <p className="empty">暂无任务记录，进入项目详情触发流水线。</p>
         ) : (
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>命令</th>
-                  <th>项目</th>
-                  <th>状态</th>
-                  <th>创建时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                {jobs.map((j) => (
-                  <tr key={j.id}>
-                    <td>
-                      <span className="cmd-chip">{commandLabel(j.command)}</span>
-                      <span className="cmd-mono">{j.command}</span>
-                    </td>
-                    <td>
-                      <Link className="table-link" to={`/projects/${j.project_id}`}>
-                        {j.project_id}
-                      </Link>
-                    </td>
-                    <td>{statusBadge(j.status)}</td>
-                    <td className="muted">{formatTime(j.created_at)}</td>
+          <>
+            {filteredJobs.length > JOB_PAGE_SIZE && (
+              <p className="muted heal-history-hint">
+                {showAllJobs ? `共 ${filteredJobs.length} 条` : `显示最近 ${JOB_PAGE_SIZE} 条，共 ${filteredJobs.length} 条`}
+                {' · '}
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-inline"
+                  onClick={() => setShowAllJobs((v) => !v)}
+                >
+                  {showAllJobs ? '收起' : '显示全部'}
+                </button>
+              </p>
+            )}
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>命令</th>
+                    <th>项目</th>
+                    <th>状态</th>
+                    <th>创建时间</th>
+                    <th />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {visibleJobs.map((j) => (
+                    <Fragment key={j.id}>
+                      <tr className={expandedJobId === j.id ? 'job-row--active' : ''}>
+                        <td>
+                          <span className="cmd-chip">{dashboardCommandLabel(j.command)}</span>
+                          <span className="cmd-mono">{j.command}</span>
+                        </td>
+                        <td>
+                          <Link className="table-link" to={`/projects/${j.project_id}`}>
+                            {j.project_id}
+                          </Link>
+                        </td>
+                        <td>{statusBadge(j.status)}</td>
+                        <td className="muted">{formatUtcTime(j.created_at)}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            disabled={loadingJobId === j.id}
+                            onClick={() => toggleJobDetail(j.id)}
+                          >
+                            {loadingJobId === j.id ? '加载中…' : expandedJobId === j.id ? '收起' : '查看'}
+                          </button>
+                        </td>
+                      </tr>
+                      {expandedJobId === j.id && expandedJob && (
+                        <tr className="job-detail-row">
+                          <td colSpan={5}>
+                            <JobLogSummary job={expandedJob} />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
         </section>
       </section>

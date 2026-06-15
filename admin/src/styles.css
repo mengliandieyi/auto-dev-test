@@ -1778,6 +1778,17 @@ th { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-
   margin: 0;
 }
 
+.dashboard-job-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.dashboard-job-filters .select-wrap {
+  min-width: 10rem;
+}
+
 .heal-history-hint {
   margin: 0 0 0.5rem;
   font-size: 0.82rem;

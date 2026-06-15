@@ -227,8 +227,9 @@ status: spec-only
 - [x] 侧栏：仪表盘 / API 设置 / Skill 库；项目下 **工作台 / 环境 / AI 模型**  
 - [x] **新建项目**（`POST /api/projects`）  
 - [x] 触发：校验 / 解析 / 生成 / 生成链路 / 执行测试 / **一键全流程** / **分层 dev**（`POST /api/pipeline/dev`）  
-- [x] 异步入队 + 日志轮询；Worker 并发默认 2  
-- [x] 读接口路径安全（防穿越、防 symlink）  
+- [x] 异步入队 + 日志轮询；Worker 并发默认 2；**任务取消**、**failure_hint**、**job-event 时间线**（持久化 `events_json`）  
+- [x] 仪表盘 / 工作台：**按项目筛选**任务、展开日志、**清理历史**  
+- [x] 读接口路径安全（防穿越、防 symlink）；**ensure_project_dirs** 自动创建项目 PRD 目录  
 
 ### M4 — 组件测试性能
 
@@ -248,11 +249,10 @@ status: spec-only
 
 ### M6 — 业务代码与 AI 自愈
 
-- [x] `run.py dev`：OpenHands 在 `repos` 叠加代码；`--layer frontend|backend|all`；Skill 可覆盖  
-- [x] 工作台：前端/后端 Skill 下拉 + 三个生成按钮；产物面板浏览 intermediate / spec  
-- [x] `heal-loop`：须**显式调用**；流程 report → flaky 重跑 → preflight → analyze → fix → retest；需求漂移时中止（`abort_reason=PRD_DRIFT`）  
-- [x] 管理台：`heal-diff-preview`、采纳（复制预览补丁）/ 放弃  
-- [x] `heal_runs` 审计含 token、`abort_reason`（`CONFIG_ENV` / `FLAKY_EXHAUSTED` / `TOKEN_LIMIT` / `PRD_DRIFT` 等）  
+- [x] `run.py dev`：OpenHands + `resolve_ai_for_task(dev_*)`；`--layer frontend|backend|all`；Skill 可覆盖  
+- [x] 工作台：前端/后端 Skill 下拉 + 分层生成；产物面板；任务取消 / failure_hint / job-event 时间线  
+- [x] `heal-loop`：须**显式调用**；202 异步入队；分析完成 `ANALYZED`；修复记录回收与清理  
+- [x] 管理台：`heal-diff-preview`、采纳 / 放弃；`heal_runs` 审计含 token、`abort_reason`  
 
 ---
 

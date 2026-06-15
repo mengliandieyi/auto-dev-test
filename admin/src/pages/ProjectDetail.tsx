@@ -7,32 +7,14 @@ import { MarkdownPreview } from '../components/MarkdownWorkspace';
 import { ActionButton } from '../components/HelpTip';
 import { JobLogSummary } from '../components/JobLogSummary';
 import Select from '../components/Select';
+import { jobCommandLabel } from '../utils/commandLabels';
 import { formatUtcTime } from '../utils/formatTime';
 
-const COMMAND_LABELS: Record<string, string> = {
-  validate: '检查 PRD',
-  parse: '提取用例',
-  generate: '生成脚本',
-  'generate-pipeline': '一键生成',
-  test: '运行测试',
-  'run-full': '生成并运行',
-  report: '验收报告',
-  dev: '生成业务代码',
-};
-
-const DEV_LAYER_LABELS: Record<string, string> = {
-  frontend: '生成前端代码',
-  backend: '生成后端代码',
-  all: '前后端都生成',
-};
-
 function jobLabel(job: Job): string {
-  if (job.command === 'dev') {
-    const layer = job.args?.layer as string | undefined;
-    if (layer && DEV_LAYER_LABELS[layer]) return DEV_LAYER_LABELS[layer];
-  }
-  return COMMAND_LABELS[job.command] || job.command;
+  return jobCommandLabel(job);
 }
+
+const JOB_HISTORY_PAGE = 10;
 
 const PIPELINE_GROUPS = [
   {
@@ -100,6 +82,12 @@ export default function ProjectDetail() {
   const [expandedJob, setExpandedJob] = useState<Job | null>(null);
   const [loadingJobId, setLoadingJobId] = useState<string | null>(null);
   const [jobMessage, setJobMessage] = useState('');
+  const [showAllJobs, setShowAllJobs] = useState(false);
+
+  const visibleJobs = useMemo(
+    () => (showAllJobs ? jobs : jobs.slice(0, JOB_HISTORY_PAGE)),
+    [jobs, showAllJobs],
+  );
 
   const frontendSkills = useMemo(
     () => skills.filter((s) => s.layer === 'frontend' || s.layer === 'fullstack'),
@@ -125,7 +113,7 @@ export default function ProjectDetail() {
 
   const load = useCallback(() => {
     if (!projectId) return;
-    Promise.all([api.prds(projectId), api.reports(projectId), api.jobs(projectId)])
+    Promise.all([api.prds(projectId), api.reports(projectId), api.jobs(projectId, 50)])
       .then(([p, r, j]) => {
         setPrds(p);
         setReports(r);
@@ -136,6 +124,7 @@ export default function ProjectDetail() {
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { setShowAllJobs(false); setExpandedJobId(null); }, [projectId]);
   useEffect(() => { loadDevContext(); }, [loadDevContext]);
 
   useEffect(() => () => stopPolling(), [stopPolling]);
@@ -417,6 +406,19 @@ export default function ProjectDetail() {
           )}
         </div>
         {jobMessage && <div className="alert alert--success">{jobMessage}</div>}
+        {jobs.length > JOB_HISTORY_PAGE && (
+          <p className="muted heal-history-hint">
+            {showAllJobs ? `共 ${jobs.length} 条` : `显示最近 ${JOB_HISTORY_PAGE} 条，共 ${jobs.length} 条`}
+            {' · '}
+            <button
+              type="button"
+              className="btn btn-ghost btn-inline"
+              onClick={() => setShowAllJobs((v) => !v)}
+            >
+              {showAllJobs ? '收起' : '显示全部'}
+            </button>
+          </p>
+        )}
         <div className="table-wrap">
           <table className="data-table">
             <thead>
@@ -425,7 +427,7 @@ export default function ProjectDetail() {
             <tbody>
               {jobs.length === 0 ? (
                 <tr><td colSpan={4} className="muted">暂无</td></tr>
-              ) : jobs.map((j) => (
+              ) : visibleJobs.map((j) => (
                 <Fragment key={j.id}>
                   <tr className={expandedJobId === j.id ? 'job-row--active' : ''}>
                     <td>{jobLabel(j)}</td>

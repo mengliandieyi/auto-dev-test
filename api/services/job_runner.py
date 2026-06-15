@@ -138,13 +138,11 @@ async def _run_job(job: Dict[str, Any]) -> None:
                 exit_code = await proc.wait()
             final = job_store.get_job(job_id)
             if final and final["status"] == "CANCELLED":
-                job_store.sync_job_events(job_id)
                 return
             status = "SUCCESS" if exit_code == 0 else "FAILED"
             job_store.update_job_status(
                 job_id, status, finished_at=job_store._now(), exit_code=exit_code
             )
-            job_store.sync_job_events(job_id)
         except asyncio.CancelledError:
             if proc and proc.returncode is None:
                 await _terminate_proc(proc)
@@ -166,6 +164,9 @@ async def _run_job(job: Dict[str, Any]) -> None:
             )
         finally:
             _running_procs.pop(job_id, None)
+            final = job_store.get_job(job_id)
+            if final and final["status"] in ("SUCCESS", "FAILED", "CANCELLED"):
+                job_store.sync_job_events(job_id)
 
 
 async def _terminate_proc(proc: asyncio.subprocess.Process) -> None:

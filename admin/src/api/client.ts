@@ -138,8 +138,10 @@ export const api = {
   reports: (projectId: string) => request<Report[]>(`/reports/${projectId}`),
   traceability: (projectId: string, prdId: string) =>
     request<{ content: string; kind: string }>(`/reports/${projectId}/${prdId}/traceability`),
-  jobs: (projectId?: string) =>
-    request<Job[]>(`/pipeline/jobs${projectId ? `?project_id=${projectId}` : ''}`),
+  jobs: (projectId?: string, limit = 20) =>
+    request<Job[]>(
+      `/pipeline/jobs?limit=${limit}${projectId ? `&project_id=${projectId}` : ''}`,
+    ),
   job: (jobId: string) => request<Job>(`/pipeline/jobs/${jobId}`),
   cancelJob: (jobId: string) =>
     request<Job>(`/pipeline/jobs/${jobId}/cancel`, { method: 'POST' }),
