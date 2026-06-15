@@ -26,7 +26,9 @@ def _resolve_skill_for_layer(
     layer: str,
     overrides: Optional[Dict[str, str]] = None,
 ) -> Optional[Path]:
-    sys.path.insert(0, str(ROOT))
+    from bootstrap import setup_repo_paths
+
+    setup_repo_paths()
     from skills_registry import resolve_skill_path
 
     if overrides and overrides.get(layer):
@@ -81,7 +83,9 @@ def run_dev(
     skill_frontend: Optional[str] = None,
     skill_backend: Optional[str] = None,
 ) -> int:
-    sys.path.insert(0, str(ROOT))
+    from bootstrap import setup_repo_paths
+
+    setup_repo_paths()
     from config_loader import load_project_config
     from content_fingerprint import find_prd_path
 

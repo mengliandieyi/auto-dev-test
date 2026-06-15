@@ -68,9 +68,9 @@ def _read_ai_fields(cfg: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _validate_ai_task_refs(project_cfg: Dict[str, Any], task_refs: Dict[str, str]) -> None:
-    import sys
+    from bootstrap import setup_repo_paths
 
-    sys.path.insert(0, str(REPO_ROOT))
+    setup_repo_paths()
     from ai_resolver import list_ai_profiles, merge_project_config
     from config_loader import load_global_config
 

@@ -9,8 +9,11 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "prd-parser"))
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from bootstrap import setup_repo_paths
+
+setup_repo_paths()
 
 from component_path_resolver import resolve_in_test_cases_data
 from config_loader import load_project_config

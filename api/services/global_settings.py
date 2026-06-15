@@ -145,9 +145,9 @@ def read_global_yaml_text() -> Dict[str, str]:
 
 
 def resolve_ai_settings(project_id: Optional[str] = None) -> Dict[str, Any]:
-    import sys
+    from bootstrap import setup_repo_paths
 
-    sys.path.insert(0, str(REPO_ROOT))
+    setup_repo_paths()
     from ai_resolver import ai_resolution_summary
     from config_loader import load_global_config, load_project_config
 

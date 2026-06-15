@@ -10,18 +10,15 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).parent
-sys.path.insert(0, str(ROOT))
+from bootstrap import ROOT, setup_repo_paths
+
+setup_repo_paths()
 from env_store import ensure_env_loaded  # noqa: E402
 
 ensure_env_loaded()
-sys.path.insert(0, str(ROOT / "prd-parser"))
-sys.path.insert(0, str(ROOT / "test-generator"))
-sys.path.insert(0, str(ROOT / "component-generator"))
 
 
 def _load_config(project_id: str) -> dict:
-    sys.path.insert(0, str(ROOT))
     from config_loader import load_project_config
 
     return load_project_config(project_id)
@@ -182,7 +179,6 @@ def cmd_run_full(args) -> int:
 
 
 def cmd_heal_loop(args) -> int:
-    sys.path.insert(0, str(ROOT))
     from heal.loop import run_heal_loop
 
     dry_run = not getattr(args, "apply", False)
@@ -190,7 +186,6 @@ def cmd_heal_loop(args) -> int:
 
 
 def cmd_dev(args) -> int:
-    sys.path.insert(0, str(ROOT))
     from heal.dev import run_dev
 
     try:

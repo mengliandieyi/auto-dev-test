@@ -58,7 +58,9 @@ def _analyze_llm(
     report_text: str,
     config: dict,
 ) -> Tuple[Dict[str, Any], float]:
-    sys.path.insert(0, str(ROOT))
+    from bootstrap import setup_repo_paths
+
+    setup_repo_paths()
     from ai_resolver import resolve_ai_for_task
     from llm_client import llm_complete
 

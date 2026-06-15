@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import Optional
 
-from api.config import REPO_ROOT
+from bootstrap import setup_repo_paths
 
-sys.path.insert(0, str(REPO_ROOT))
-
+setup_repo_paths()
 from env_store import read_credentials, write_credentials  # noqa: E402
 
 

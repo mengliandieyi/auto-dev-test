@@ -5,11 +5,10 @@ from __future__ import annotations
 import sys
 import time
 from pathlib import Path
-from typing import Optional
 
-ROOT = Path(__file__).resolve().parent.parent
+from bootstrap import ROOT, setup_repo_paths
 
-sys.path.insert(0, str(ROOT))
+setup_repo_paths()
 
 
 def run_heal_loop(project_id: str, prd_id: str, *, dry_run: bool = True) -> int:

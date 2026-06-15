@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import HTTPException
 
-from api.config import REPO_ROOT
+from bootstrap import setup_repo_paths
 
-sys.path.insert(0, str(REPO_ROOT))
+setup_repo_paths()
 from skills_registry import (  # noqa: E402
     delete_skill,
     derive_skill_id,

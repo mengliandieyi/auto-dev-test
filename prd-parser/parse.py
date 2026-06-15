@@ -10,7 +10,11 @@ from pathlib import Path
 from typing import Union
 
 ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(Path(__file__).parent))
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from bootstrap import setup_repo_paths
+
+setup_repo_paths()
 
 from validator import validate
 from schema import validate_test_cases
@@ -27,7 +31,6 @@ def parse(project_id: str, prd_path: Union[str, Path]) -> Path:
     if not result.valid:
         sys.exit(2)
 
-    sys.path.insert(0, str(ROOT))
     from config_loader import load_project_config
     from content_fingerprint import prd_content_hash, scan_merge_conflicts, source_git_sha
 
@@ -68,7 +71,6 @@ def parse(project_id: str, prd_path: Union[str, Path]) -> Path:
 
 
 def _parse_llm(prd_path: Path, project_id: str, project_config: dict) -> dict:
-    sys.path.insert(0, str(ROOT))
     from ai_resolver import resolve_ai_for_task
     from llm_client import llm_complete
 

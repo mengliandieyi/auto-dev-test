@@ -115,6 +115,9 @@ auto-dev-test/
 ├── test-generator/            # e2e 生成 + playwright.config.ts
 ├── component-generator/
 ├── run.py, report.py, config_loader.py
+├── bootstrap.py               # 统一 sys.path 引导（根 + 子模块目录）
+├── version.py, VERSION        # 单一版本源；scripts/sync_version.py 同步 package.json
+├── playwright_runtime.py      # 从 config/projects 导出 test-generator/playwright.runtime.json
 ├── env_store.py, ai_resolver.py, llm_client.py   # LLM 配置与 .env
 ├── skills/                    # Skill 库 .md（管理台可编辑）
 ├── spec_idempotency.py        # M1
@@ -557,6 +560,7 @@ POST /api/projects/{id}/prds/upload         # M5
 ```
 POST /api/pipeline/validate
 ← { "project_id": "project-a", "prd": "prds/project-a/PROJ-001_login.md" }
+# 入队前 resolve_prd_path：PRD 须在项目 prd_dir 内；validator.expected_project 与 project_id 一致
 
 POST /api/pipeline/parse
 ← { "project_id": "project-a", "prd": "prds/project-a/PROJ-001_login.md" }
@@ -588,8 +592,15 @@ GET /api/pipeline/jobs/{job_id}
 → 200 {
   "id", "project_id", "command", "status",
   "exit_code", "created_at", "started_at", "finished_at",
-  "log_tail": "string, max 8KB"
+  "log_tail": "string, max 8KB",
+  "failure_hint"?: "string"   # FAILED 时规则分类摘要（content_drift / config / timeout …）
 }
+
+POST /api/pipeline/jobs/{job_id}/cancel
+→ 200 JobResponse   # PENDING/RUNNING → CANCELLED；子进程 SIGTERM
+
+POST /api/pipeline/jobs/prune?keep=100
+→ 200 { "removed": N }   # 保留最近 N 条，清理终态任务
 ```
 
 `status`: `PENDING | RUNNING | SUCCESS | FAILED | CANCELLED`
@@ -684,6 +695,12 @@ GET /api/projects/{id}/artifacts/{prd_id}/changes
 ### 5.4 `job_runner.py`
 
 子进程 `python3 run.py ...`；日志 `logs/{job_id}.log`；`start_new_session=True`；shutdown SIGTERM→SIGKILL；`recover_stale_running_jobs()`。
+
+**取消**：`POST .../cancel` 调用 `job_store.try_mark_cancelled`；运行中进程组 SIGTERM；`job_insights.classify_failure` 为 CANCELLED 任务生成 `failure_hint`。
+
+**历史清理**：`prune_jobs(keep)` 删除超出保留数的终态记录（仪表盘「清理历史」）。
+
+**Playwright 多项目**：`playwright_runtime.export_playwright_runtime()` 读取 `config/projects/*.yaml` 写出 `test-generator/playwright.runtime.json`（gitignore）；`playwright.config.ts` 动态加载。API 启动、新建项目、保存环境配置时 `sync_playwright_runtime()`。
 
 ### 5.5 路径安全
 
@@ -1074,6 +1091,8 @@ def resolve_reuse_existing_server(value) -> bool:
 | symlink 穿越 | `resolve(strict=True)` | M3 |
 | 环境误 heal | preflight + flaky 规则 | M6 |
 | Token 爆账单 | 双熔断 + heal_runs 审计 | M6 |
+| 散落 `sys.path.insert` | `bootstrap.setup_repo_paths()` 幂等注入根与子模块路径 | 4.4+ |
+| 版本号漂移 | 根目录 `VERSION` + `scripts/sync_version.py` | 4.4+ |
 
 ---
 

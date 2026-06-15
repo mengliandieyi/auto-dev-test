@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT))
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from bootstrap import setup_repo_paths
+
+setup_repo_paths()
 
 from config_loader import load_project_config
 from meta_db import ensure_project_db, upsert_record

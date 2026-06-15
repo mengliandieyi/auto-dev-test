@@ -5,12 +5,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from bootstrap import setup_repo_paths
+
+setup_repo_paths()
+
 from api.config import REPO_ROOT
 from api.routers import artifacts, heal, pipeline, prds, projects, reports, settings, skills
 from api.services import job_runner, job_store
 
-import sys
-sys.path.insert(0, str(REPO_ROOT))
 from env_store import ensure_env_loaded  # noqa: E402
 from playwright_runtime import sync_playwright_runtime  # noqa: E402
 from version import VERSION  # noqa: E402
