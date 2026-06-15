@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api, Job, Prd, Report, SkillSummary } from '../api/client';
 import HealPanel from '../components/HealPanel';
 import ArtifactsPanel from '../components/ArtifactsPanel';
+import { MarkdownPreview } from '../components/MarkdownWorkspace';
 import { ActionButton } from '../components/HelpTip';
 import Select from '../components/Select';
 
@@ -326,7 +327,7 @@ export default function ProjectDetail() {
                   type="button"
                   className="btn btn-ghost btn-danger-text"
                   onClick={cancelActiveJob}
-                  .disabled={busy}
+                  disabled={busy}
                 >
                   取消
                 </button>
@@ -363,7 +364,11 @@ export default function ProjectDetail() {
             ))}
           </ul>
         )}
-        {reportContent && <pre className="pre-wrap">{reportContent}</pre>}
+        {reportContent && (
+          <div className="markdown-workspace markdown-workspace--view" style={{ marginTop: '1rem' }}>
+            <MarkdownPreview content={reportContent} article />
+          </div>
+        )}
       </div>
 
       <div className="card">
