@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Job } from '../api/client';
-import { jobEventLabel, parseJobEvents, stripJobEventsFromLog } from './jobEvents';
+import { jobEventLabel, parseJobEvents, stripJobEventsFromLog } from '../utils/jobEvents';
 
 type Props = {
   job: Pick<Job, 'log_tail' | 'failure_hint' | 'status'>;
