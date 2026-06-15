@@ -95,8 +95,11 @@ def _extract_section_body(lines: list, section_name: str) -> str:
     return "\n".join(body_lines)
 
 
-def validate(prd_path) -> ValidationResult:
-    """校验 PRD 文件，返回 ValidationResult"""
+def validate(prd_path, *, expected_project: Optional[str] = None) -> ValidationResult:
+    """校验 PRD 文件，返回 ValidationResult。
+
+    expected_project: 若提供，则 frontmatter 的 project 必须与其一致。
+    """
     path = Path(prd_path)
     result = ValidationResult(valid=True)
 
@@ -113,6 +116,13 @@ def validate(prd_path) -> ValidationResult:
     for field_name in REQUIRED_FRONTMATTER:
         if field_name not in meta or not meta[field_name]:
             result.add_error(f"Frontmatter 缺少必填字段：{field_name}")
+
+    if expected_project and meta.get("project"):
+        fm_project = str(meta["project"]).strip()
+        if fm_project != expected_project:
+            result.add_error(
+                f"Frontmatter project={fm_project} 与期望项目 {expected_project} 不一致"
+            )
 
     # 2. 必填章节存在性
     for section in REQUIRED_SECTIONS:

@@ -27,17 +27,38 @@ def _load_config(project_id: str) -> dict:
     return load_project_config(project_id)
 
 
+def _resolve_cli_prd(project_id: str, prd_rel: str) -> Path:
+    from fastapi import HTTPException
+    from api.services.path_safety import resolve_prd_path
+
+    try:
+        return resolve_prd_path(project_id, prd_rel)
+    except HTTPException as exc:
+        raise SystemExit(str(exc.detail)) from exc
+
+
 def cmd_validate(args) -> int:
     from validator import validate
 
-    result = validate(Path(args.prd))
-    print(result.report(str(args.prd)))
+    try:
+        prd_path = _resolve_cli_prd(args.project, args.prd)
+    except SystemExit as exc:
+        print(f"❌ PRD 路径无效：{exc}")
+        return 1
+    result = validate(prd_path, expected_project=args.project)
+    print(result.report(str(prd_path)))
     return 0 if result.valid else 2
 
 
 def cmd_parse(args) -> int:
     from parse import parse
 
+    try:
+        prd_path = _resolve_cli_prd(args.project, args.prd)
+    except SystemExit as exc:
+        print(f"❌ PRD 路径无效：{exc}")
+        return 1
+    args.prd = str(prd_path)
     try:
         output = parse(args.project, args.prd)
         print(f"✅ 中间产物：{output}")
@@ -108,7 +129,11 @@ def cmd_test(args) -> int:
 
     if layer in ("e2e", "all"):
         print(f"\n── Playwright E2E（{args.project}）──")
+        from playwright_runtime import export_playwright_runtime
+
+        export_playwright_runtime(ROOT)
         env = os.environ.copy()
+        env["PLAYWRIGHT_ACTIVE_PROJECT"] = args.project
         proj_env_key = f"PROJECT_{args.project.upper().replace('-', '_')}_BASE_URL"
         env[proj_env_key] = config.get("base_url", "http://127.0.0.1:4173")
         env["PLAYWRIGHT_REPORT_DIR"] = str(report_dir)
@@ -168,9 +193,14 @@ def cmd_dev(args) -> int:
     sys.path.insert(0, str(ROOT))
     from heal.dev import run_dev
 
+    try:
+        prd_path = _resolve_cli_prd(args.project, args.prd)
+    except SystemExit as exc:
+        print(f"❌ PRD 路径无效：{exc}")
+        return 1
     return run_dev(
         args.project,
-        args.prd,
+        str(prd_path),
         layer=getattr(args, "layer", "all"),
         skill_frontend=getattr(args, "skill_frontend", None),
         skill_backend=getattr(args, "skill_backend", None),

@@ -1,6 +1,6 @@
 {
   "name": "auto-dev-test",
-  "version": "4.4.1",
+  "version": "4.4.2",
   "private": true,
   "scripts": {
     "test:e2e": "playwright test --config=test-generator/playwright.config.ts",

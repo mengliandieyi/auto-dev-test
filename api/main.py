@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="auto-dev-test API",
     description="PRD 驱动测试平台 — Web 管理后台",
-    version="4.4.1",
+    version="4.4.2",
     lifespan=lifespan,
 )
 

@@ -15,7 +15,8 @@ python3 -m unittest \
   tests.test_skills_api \
   tests.test_dev_layer \
   tests.test_heal_fix \
-  tests.test_list_prds \
+  tests.test_prd_project_binding \
+  tests.test_playwright_runtime \
   tests.test_project_settings \
   tests.test_create_project \
   tests.test_artifacts_api \

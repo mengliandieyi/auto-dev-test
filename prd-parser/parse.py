@@ -22,7 +22,7 @@ def parse(project_id: str, prd_path: Union[str, Path]) -> Path:
     prd_path = Path(prd_path)
     print(f"[parse] 开始解析：{prd_path}")
 
-    result = validate(prd_path)
+    result = validate(prd_path, expected_project=project_id)
     print(result.report(str(prd_path)))
     if not result.valid:
         sys.exit(2)

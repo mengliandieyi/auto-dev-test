@@ -13,6 +13,7 @@ heal/fix-runs/
 tests/generated/jobs.db
 
 node_modules/
+test-generator/playwright.runtime.json
 admin/dist/
 *.tsbuildinfo
 __pycache__/

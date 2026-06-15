@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from api.models.schemas import JobDetailResponse, JobResponse, PipelineRequest
 from api.services import job_runner, job_store
-from api.services.path_safety import validate_project_id
+from api.services.path_safety import resolve_prd_path, validate_project_id
 
 router = APIRouter(prefix="/api/pipeline", tags=["pipeline"])
 
@@ -29,6 +29,10 @@ async def _enqueue(command: str, body: PipelineRequest) -> JobResponse:
     args: dict = {}
     prd = body.resolved_prd()
     if prd:
+        safe_prd = resolve_prd_path(body.project_id, prd)
+        from api.config import REPO_ROOT
+
+        prd = str(safe_prd.relative_to(REPO_ROOT.resolve()))
         args["prd"] = prd
     if body.prd_id:
         args["prd_id"] = body.prd_id

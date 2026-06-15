@@ -92,22 +92,23 @@ def render_spec(test_cases: dict, project_config: dict) -> str:
         gate = tc.get("m1_gate", False)
         test_fn = "it" if gate else "it.skip"
         parts.append(f"  {test_fn}('{tc['id']}: {tc.get('title', '')}', async () => {{")
+        parts.append("    const user = userEvent.setup();")
         if tc.get("mocks"):
             parts.extend(_emit_mock(tc["mocks"][0]))
         parts.append(f"    render(<{comp} />);")
         for act in tc.get("actions") or []:
             tid = act.get("testid")
             if act.get("type") == "fill":
-                parts.append(f"    await userEvent.clear(screen.getByTestId('{tid}'));")
+                parts.append(f"    await user.clear(screen.getByTestId('{tid}'));")
                 parts.append(
-                    f"    await userEvent.type(screen.getByTestId('{tid}'), {_ts(act.get('value', ''))});"
+                    f"    await user.type(screen.getByTestId('{tid}'), {_ts(act.get('value', ''))});"
                 )
             elif act.get("type") == "click":
-                parts.append(f"    await userEvent.click(screen.getByTestId('{act['testid']}'));")
+                parts.append(f"    await user.click(screen.getByTestId('{act['testid']}'));")
         for a in tc.get("assertions") or []:
             if a.get("type") == "text_visible":
                 parts.append(
-                    f"    expect(screen.getByTestId('{a['testid']}')).toHaveTextContent({_ts(a.get('text', ''))});"
+                    f"    expect(await screen.findByTestId('{a['testid']}')).toHaveTextContent({_ts(a.get('text', ''))});"
                 )
             elif a.get("type") == "disabled":
                 parts.append(f"    expect(screen.getByTestId('{a['testid']}')).toBeDisabled();")

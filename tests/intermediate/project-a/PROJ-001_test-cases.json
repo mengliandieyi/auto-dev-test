@@ -27,14 +27,14 @@
           "action": "fill",
           "testid": "username-input",
           "target": null,
-          "value": "{{valid.username}}",
+          "value": "test@example.com",
           "type": null
         },
         {
           "action": "fill",
           "testid": "password-input",
           "target": null,
-          "value": "{{valid.password}}",
+          "value": "Test1234!",
           "type": null
         },
         {
@@ -78,14 +78,14 @@
           "action": "fill",
           "testid": "username-input",
           "target": null,
-          "value": "{{valid.username}}",
+          "value": "test@example.com",
           "type": null
         },
         {
           "action": "fill",
           "testid": "password-input",
           "target": null,
-          "value": "{{invalid.password}}",
+          "value": "WrongPass!",
           "type": null
         },
         {

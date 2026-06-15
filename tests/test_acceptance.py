@@ -20,11 +20,19 @@ class TestMilestoneAcceptance(unittest.TestCase):
   """关键验收项；完整 E2E 需 npm + playwright 已安装。"""
 
   def test_m1_validate_exit_code_2(self):
-    bad = ROOT / "tests/fixtures/_bad_prd.md"
+    bad = ROOT / "prds/project-a/_bad_prd_validate_test.md"
     bad.write_text("# 无章节\n", encoding="utf-8")
     try:
       r = subprocess.run(
-        [sys.executable, str(ROOT / "run.py"), "validate", "--project", "project-a", "--prd", str(bad)],
+        [
+          sys.executable,
+          str(ROOT / "run.py"),
+          "validate",
+          "--project",
+          "project-a",
+          "--prd",
+          "prds/project-a/_bad_prd_validate_test.md",
+        ],
         cwd=ROOT,
         capture_output=True,
         text=True,
