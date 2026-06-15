@@ -27,6 +27,9 @@ async def lifespan(app: FastAPI):
 
     init_heal_db()
     recover_stale_heal_runs()
+    from api.services.projects import ensure_all_project_dirs
+
+    ensure_all_project_dirs()
     sync_playwright_runtime()
     job_runner.start_worker_on_startup()
     yield

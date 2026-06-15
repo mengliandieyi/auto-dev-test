@@ -66,6 +66,19 @@ class TestCreateProject(unittest.TestCase):
             validate_new_project_id("../evil")
         self.assertEqual(ctx.exception.status_code, 400)
 
+    def test_ensure_project_dirs_for_existing_yaml(self):
+        from api.services.projects import ensure_project_dirs, list_prds
+        from bootstrap import ROOT
+
+        prd_dir = ROOT / "prds" / "project-b"
+        if prd_dir.exists():
+            import shutil
+
+            shutil.rmtree(prd_dir)
+        ensure_project_dirs("project-b")
+        self.assertTrue(prd_dir.is_dir())
+        self.assertEqual(list_prds("project-b"), [])
+
 
 if __name__ == "__main__":
     unittest.main()

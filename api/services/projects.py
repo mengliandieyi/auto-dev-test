@@ -47,6 +47,29 @@ def _project_dirs(project_id: str) -> List[Path]:
     ]
 
 
+def ensure_project_dirs(project_id: str) -> None:
+    """按项目配置创建 prd / intermediate / generated 等目录（幂等）。"""
+    validate_project_id(project_id)
+    for folder in _project_dirs(project_id):
+        folder.mkdir(parents=True, exist_ok=True)
+    path = REPO_ROOT / "config" / "projects" / f"{project_id}.yaml"
+    with open(path, encoding="utf-8") as f:
+        cfg = yaml.safe_load(f) or {}
+    for key in ("prd_dir", "intermediate_dir", "test_output_dir", "archive_dir"):
+        raw = cfg.get(key)
+        if isinstance(raw, str) and raw.strip():
+            (REPO_ROOT / raw.strip()).mkdir(parents=True, exist_ok=True)
+    report = cfg.get("report") if isinstance(cfg.get("report"), dict) else {}
+    out_dir = report.get("output_dir") if isinstance(report, dict) else None
+    if isinstance(out_dir, str) and out_dir.strip():
+        (REPO_ROOT / out_dir.strip()).mkdir(parents=True, exist_ok=True)
+
+
+def ensure_all_project_dirs() -> None:
+    for item in list_projects():
+        ensure_project_dirs(item["id"])
+
+
 def create_project(project_id: str, project_name: str, base_url: str) -> Dict[str, Any]:
     from api.services.path_safety import validate_new_project_id
 
@@ -128,6 +151,7 @@ def get_project(project_id: str) -> Dict[str, Any]:
 
 
 def list_prds(project_id: str) -> List[Dict[str, Any]]:
+    ensure_project_dirs(project_id)
     prd_dir = resolve_prd_dir(project_id)
     items = []
     for path in sorted(prd_dir.glob("*.md")):
