@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -54,6 +53,28 @@ def _resolve_skill_for_layer(
     return None
 
 
+def build_openhands_argv(openhands: str, task: str) -> List[str]:
+    """兼容 OpenHands 新旧 CLI（`run --task` vs 顶层 `-t`）。"""
+    legacy = subprocess.run(
+        [openhands, "run", "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    help_text = f"{legacy.stdout or ''}{legacy.stderr or ''}"
+    if legacy.returncode == 0 and "run" in help_text:
+        return [openhands, "--override-with-envs", "run", "--task", task]
+    return [
+        openhands,
+        "--override-with-envs",
+        "--headless",
+        "--always-approve",
+        "-t",
+        task,
+    ]
+
+
 def _run_layer_dev(
     *,
     project_id: str,
@@ -72,6 +93,7 @@ def _run_layer_dev(
     if skill_path and skill_path.is_file():
         env["TYPEUI_SKILL_PATH"] = str(skill_path)
     env.update(subprocess_llm_env(ai_cfg))
+    env.setdefault("OPENHANDS_SUPPRESS_BANNER", "1")
 
     skill_hint = str(skill_path) if skill_path else "（无 Skill）"
     task = (
@@ -79,10 +101,10 @@ def _run_layer_dev(
         f"工作目录为业务仓；遵循 Skill：{skill_hint}；"
         "不要修改 tests/generated/ 下的测试产物。"
     )
-    cmd = [openhands, "--override-with-envs", "run", "--task", task]
+    cmd = build_openhands_argv(openhands, task)
     profile = ai_cfg.get("profile") or "default"
     print(f"\n执行 [{layer}]：{ai_cfg['model']} (profile={profile})")
-    print(f"  cmd：{' '.join(cmd[:3])} …")
+    print(f"  cmd：{' '.join(cmd[:4])} …")
     return subprocess.run(cmd, cwd=str(repo_path), env=env).returncode
 
 
@@ -128,7 +150,9 @@ def run_dev(
     print(f"  PRD：{prd}")
     print(f"  范围：{layer}")
 
-    openhands = shutil.which("openhands") or shutil.which("openhands-cli")
+    from tool_path import which_tool
+
+    openhands = which_tool("openhands", "openhands-cli")
     if not openhands:
         print("\n⚠️  未检测到 OpenHands CLI。请安装后重试，或手动在 repos 路径开发：")
         for lyr in layers:

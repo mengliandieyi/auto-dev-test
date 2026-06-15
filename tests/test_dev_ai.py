@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from heal.dev import _dev_ai_task, _run_layer_dev
+from heal.dev import _dev_ai_task, _run_layer_dev, build_openhands_argv
 from llm_client import subprocess_llm_env
 
 
@@ -51,8 +51,9 @@ class TestDevAiEnv(unittest.TestCase):
             "profile": "sonnet",
         }
         with patch("heal.dev.subprocess.run", side_effect=fake_run):
-            with patch("llm_client._resolve_credentials", return_value=("anthropic", "sk-x", "")):
-                rc = _run_layer_dev(
+            with patch("heal.dev.build_openhands_argv", return_value=["/usr/bin/openhands", "--override-with-envs", "-t", "task"]):
+                with patch("llm_client._resolve_credentials", return_value=("anthropic", "sk-x", "")):
+                    rc = _run_layer_dev(
                     project_id="project-a",
                     prd=prd,
                     layer="frontend",
@@ -63,7 +64,25 @@ class TestDevAiEnv(unittest.TestCase):
                 )
         self.assertEqual(rc, 0)
         self.assertIn("--override-with-envs", captured["cmd"])
+        self.assertTrue(
+            "-t" in captured["cmd"] or "run" in captured["cmd"],
+            captured["cmd"],
+        )
         self.assertEqual(captured["env"]["LLM_MODEL"], "claude-sonnet-4-5")
+
+    def test_build_openhands_argv_new_cli(self):
+        def fake_help(cmd, **kwargs):
+            class Result:
+                returncode = 2
+                stdout = ""
+                stderr = "invalid choice: 'run'"
+
+            return Result()
+
+        with patch("heal.dev.subprocess.run", side_effect=fake_help):
+            argv = build_openhands_argv("/usr/bin/openhands", "do thing")
+        self.assertEqual(argv[:2], ["/usr/bin/openhands", "--override-with-envs"])
+        self.assertIn("-t", argv)
 
 
 if __name__ == "__main__":

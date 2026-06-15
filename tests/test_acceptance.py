@@ -141,13 +141,23 @@ class TestMilestoneAcceptance(unittest.TestCase):
     self.assertTrue((ROOT / "api/routers/heal.py").is_file())
 
   def test_m6_dev_runs(self):
+    import os
+
+    env = os.environ.copy()
+    env["AUTO_DEV_DISABLE_TOOL_PATH"] = "1"
+    env["PATH"] = os.pathsep.join(
+      p for p in env.get("PATH", "").split(os.pathsep)
+      if p and not p.endswith(".local/bin")
+    )
     r = subprocess.run(
       [sys.executable, str(ROOT / "run.py"), "dev", "--project", "project-a", "--prd", "prds/project-a/PROJ-001_login.md"],
       cwd=ROOT,
       capture_output=True,
       text=True,
+      env=env,
     )
-    self.assertEqual(r.returncode, 0, r.stderr)
+    self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+    self.assertIn("未检测到 OpenHands CLI", r.stdout + r.stderr)
 
 
 if __name__ == "__main__":

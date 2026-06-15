@@ -768,7 +768,7 @@ OpenHands + `repos` + PRD + Skill；不修改 `tests/generated/` 幂等逻辑。
 | `--layer` | `frontend` / `backend` / `all`（默认 `all`） |
 | `--skill-frontend` / `--skill-backend` | 覆盖 `dev.*_skill` 与 yaml 默认 |
 | Skill 解析顺序 | CLI 参数 → `dev.{layer}_skill` → 前端 fallback `typeui.skill_path` |
-| LLM | `resolve_ai_for_task(config, dev_frontend|dev_backend)` → `LLM_MODEL` / `LLM_API_KEY` / `LLM_BASE_URL`；OpenHands 加 `--override-with-envs` |
+| LLM | `resolve_ai_for_task(config, dev_frontend|dev_backend)` → `LLM_MODEL` / `LLM_API_KEY` / `LLM_BASE_URL`；OpenHands 加 `--override-with-envs`；CLI 1.16+ 使用 `-t TASK --headless`，旧版为 `run --task`（自动探测） |
 
 `ai.tasks.dev_frontend` / `dev_backend` 按层解析 profile；密钥来自 `LLM_KEY_<PROFILE>` 或全局 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`。
 

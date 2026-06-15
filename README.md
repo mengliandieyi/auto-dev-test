@@ -118,6 +118,19 @@ python3 -m unittest tests.test_m5_write_security -v
 
 ## M6 业务代码与 AI 自愈
 
+**业务仓样板**（与 `config/projects/project-a.yaml` 的 `repos` 相对路径对应）：
+
+```bash
+bash scripts/setup-business-repos.sh   # 检查 acme-web/acme-api、npm install、OpenHands
+```
+
+**OpenHands CLI**（`dev` 必需）：
+
+```bash
+uv tool install openhands --python 3.12   # 需 ~/.local/bin 在 PATH
+openhands --version
+```
+
 ```bash
 # 业务开发（需 OpenHands CLI；未安装时打印 repos 指引）
 python3 run.py dev --project project-a --prd prds/project-a/PROJ-001_login.md

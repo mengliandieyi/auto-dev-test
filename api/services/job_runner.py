@@ -123,7 +123,9 @@ async def _run_job(job: Dict[str, Any]) -> None:
             if not log_path:
                 raise ValueError("log_path missing")
             with open(log_path, "wb") as log_file:
-                env = os.environ.copy()
+                from tool_path import augment_path_env
+
+                env = augment_path_env(os.environ.copy())
                 env["AUTO_DEV_JOB_ID"] = job_id
                 env["AUTO_DEV_JOB_COMMAND"] = job["command"]
                 proc = await asyncio.create_subprocess_exec(

@@ -22,7 +22,7 @@ def test_run_dev_no_repos_returns_error(monkeypatch):
     prd.write_text("# x", encoding="utf-8")
     try:
         with patch("config_loader.load_project_config", return_value=cfg):
-            with patch("heal.dev.shutil.which", return_value="/usr/bin/openhands"):
+            with patch("heal.dev.which_tool", return_value="/usr/bin/openhands"):
                 rc = run_dev("project-a", str(prd), layer="frontend")
                 assert rc == 1
     finally:
@@ -40,7 +40,7 @@ def test_run_dev_dry_run_without_openhands(monkeypatch):
     prd.write_text("# x", encoding="utf-8")
     try:
         with patch("config_loader.load_project_config", return_value=cfg):
-            with patch("heal.dev.shutil.which", return_value=None):
+            with patch("heal.dev.which_tool", return_value=None):
                 rc = run_dev("project-a", str(prd), layer="frontend")
                 assert rc == 0
     finally:
