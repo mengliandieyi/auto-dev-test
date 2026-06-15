@@ -111,3 +111,32 @@ def llm_complete(ai_cfg: dict, prompt: str, *, max_tokens: Optional[int] = None)
     usage = getattr(msg, "usage", None)
     tokens = float((usage.input_tokens if usage else 0) + (usage.output_tokens if usage else 0))
     return text, tokens
+
+
+def subprocess_llm_env(ai_cfg: dict) -> Dict[str, str]:
+    """为子进程（OpenHands 等）准备 LLM 环境变量；CLI 需 `--override-with-envs`。"""
+    ensure_env_loaded()
+    provider, api_key, base_url = _resolve_credentials(ai_cfg)
+    model = ai_cfg["model"]
+    max_tokens = str(int(ai_cfg.get("max_tokens", 8096)))
+    out: Dict[str, str] = {
+        "LLM_MODEL": model,
+        "LLM_MAX_OUTPUT_TOKENS": max_tokens,
+        "AUTO_DEV_LLM_PROFILE": str(ai_cfg.get("profile") or ""),
+        "AUTO_DEV_LLM_PROVIDER": provider,
+    }
+    if api_key:
+        out["LLM_API_KEY"] = api_key
+    if base_url:
+        out["LLM_BASE_URL"] = base_url
+    if provider == "openai":
+        if api_key:
+            out["OPENAI_API_KEY"] = api_key
+        if base_url:
+            out["OPENAI_BASE_URL"] = base_url
+    else:
+        if api_key:
+            out["ANTHROPIC_API_KEY"] = api_key
+        if base_url:
+            out["ANTHROPIC_BASE_URL"] = base_url
+    return out

@@ -700,6 +700,8 @@ GET /api/projects/{id}/artifacts/{prd_id}/changes
 
 **历史清理**：`prune_jobs(keep)` 删除超出保留数的终态记录（仪表盘「清理历史」）。
 
+**结构化日志**：Worker 向子进程注入 `AUTO_DEV_JOB_ID`；`run.py` 输出 `[job-event] {"job_id", "event": start|finish|error, ...}` JSON 行（`job_events.py`），便于日志检索与后续 UI 解析。
+
 **Playwright 多项目**：`playwright_runtime.export_playwright_runtime()` 读取 `config/projects/*.yaml` 写出 `test-generator/playwright.runtime.json`（gitignore）；`playwright.config.ts` 动态加载。API 启动、新建项目、保存环境配置时 `sync_playwright_runtime()`。
 
 ### 5.5 路径安全
@@ -759,8 +761,9 @@ OpenHands + `repos` + PRD + Skill；不修改 `tests/generated/` 幂等逻辑。
 | `--layer` | `frontend` / `backend` / `all`（默认 `all`） |
 | `--skill-frontend` / `--skill-backend` | 覆盖 `dev.*_skill` 与 yaml 默认 |
 | Skill 解析顺序 | CLI 参数 → `dev.{layer}_skill` → 前端 fallback `typeui.skill_path` |
+| LLM | `resolve_ai_for_task(config, dev_frontend|dev_backend)` → `LLM_MODEL` / `LLM_API_KEY` / `LLM_BASE_URL`；OpenHands 加 `--override-with-envs` |
 
-`ai.tasks.dev_frontend` / `dev_backend` 已在全局与项目配置中预留；**dev 执行 OpenHands 时尚未按任务 profile 切换 LLM**（后续接入 `resolve_ai_for_task`）。
+`ai.tasks.dev_frontend` / `dev_backend` 按层解析 profile；密钥来自 `LLM_KEY_<PROFILE>` 或全局 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`。
 
 ### 8.2 heal-loop 时序
 

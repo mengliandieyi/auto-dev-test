@@ -261,7 +261,18 @@ def main():
         "heal-loop": cmd_heal_loop,
         "dev": cmd_dev,
     }
-    sys.exit(handlers[args.command](args))
+    from job_events import emit_job_event
+
+    emit_job_event("start", command=args.command, project=getattr(args, "project", ""))
+    try:
+        rc = handlers[args.command](args)
+    except SystemExit:
+        raise
+    except Exception as exc:
+        emit_job_event("error", message=str(exc))
+        raise
+    emit_job_event("finish", exit_code=rc)
+    sys.exit(rc)
 
 
 if __name__ == "__main__":

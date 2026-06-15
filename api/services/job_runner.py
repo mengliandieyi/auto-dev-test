@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import signal
 from typing import Any, Dict, List, Optional
 
@@ -122,12 +123,16 @@ async def _run_job(job: Dict[str, Any]) -> None:
             if not log_path:
                 raise ValueError("log_path missing")
             with open(log_path, "wb") as log_file:
+                env = os.environ.copy()
+                env["AUTO_DEV_JOB_ID"] = job_id
+                env["AUTO_DEV_JOB_COMMAND"] = job["command"]
                 proc = await asyncio.create_subprocess_exec(
                     *argv,
                     stdout=log_file,
                     stderr=asyncio.subprocess.STDOUT,
                     cwd=str(REPO_ROOT),
                     start_new_session=True,
+                    env=env,
                 )
                 _running_procs[job_id] = proc
                 exit_code = await proc.wait()

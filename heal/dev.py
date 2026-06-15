@@ -9,8 +9,14 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from llm_client import subprocess_llm_env
+
 ROOT = Path(__file__).resolve().parent.parent
 VALID_LAYERS = frozenset({"frontend", "backend", "all"})
+
+
+def _dev_ai_task(layer: str) -> str:
+    return f"dev_{layer}"
 
 
 def _resolve_repo_path(repos: Dict[str, Any], layer: str) -> Optional[Path]:
@@ -56,6 +62,7 @@ def _run_layer_dev(
     repo_path: Path,
     skill_path: Optional[Path],
     openhands: str,
+    ai_cfg: Dict[str, Any],
 ) -> int:
     env = os.environ.copy()
     env["AUTO_DEV_PROJECT"] = project_id
@@ -64,6 +71,7 @@ def _run_layer_dev(
     env["AUTO_DEV_REPO"] = str(repo_path)
     if skill_path and skill_path.is_file():
         env["TYPEUI_SKILL_PATH"] = str(skill_path)
+    env.update(subprocess_llm_env(ai_cfg))
 
     skill_hint = str(skill_path) if skill_path else "（无 Skill）"
     task = (
@@ -71,8 +79,10 @@ def _run_layer_dev(
         f"工作目录为业务仓；遵循 Skill：{skill_hint}；"
         "不要修改 tests/generated/ 下的测试产物。"
     )
-    cmd = [openhands, "run", "--task", task]
-    print(f"\n执行 [{layer}]：{' '.join(cmd)}")
+    cmd = [openhands, "--override-with-envs", "run", "--task", task]
+    profile = ai_cfg.get("profile") or "default"
+    print(f"\n执行 [{layer}]：{ai_cfg['model']} (profile={profile})")
+    print(f"  cmd：{' '.join(cmd[:3])} …")
     return subprocess.run(cmd, cwd=str(repo_path), env=env).returncode
 
 
@@ -86,6 +96,7 @@ def run_dev(
     from bootstrap import setup_repo_paths
 
     setup_repo_paths()
+    from ai_resolver import resolve_ai_for_task
     from config_loader import load_project_config
     from content_fingerprint import find_prd_path
 
@@ -142,6 +153,7 @@ def run_dev(
             print(f"⚠️  仓库路径不存在：{repo_path}，跳过")
             continue
         ran_any = True
+        ai_cfg = resolve_ai_for_task(config, _dev_ai_task(lyr))
         rc = _run_layer_dev(
             project_id=project_id,
             prd=prd,
@@ -149,6 +161,7 @@ def run_dev(
             repo_path=repo_path,
             skill_path=skill_path,
             openhands=openhands,
+            ai_cfg=ai_cfg,
         )
         exit_code = max(exit_code, rc)
 
