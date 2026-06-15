@@ -18,6 +18,11 @@ def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
+def _parse_ts(value: str) -> datetime:
+    text = (value or "").strip().replace(" UTC", "")
+    return datetime.strptime(text, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+
+
 def init_heal_db(db_path: Path = JOBS_DB) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     HEAL_FIX_DIR.mkdir(parents=True, exist_ok=True)
@@ -129,6 +134,42 @@ def list_heal_runs(project_id: str, prd_id: Optional[str] = None, limit: int = 2
         ).fetchall()
     conn.close()
     return [_row_to_run(r) for r in rows]
+
+
+def recover_stale_heal_runs() -> int:
+    """将遗留 RUNNING 记录标为终态（分析完成 / 超时孤儿）。"""
+    init_heal_db()
+    conn = sqlite3.connect(JOBS_DB, timeout=30)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute("SELECT * FROM heal_runs WHERE status = 'RUNNING'").fetchall()
+    conn.close()
+    now = datetime.now(timezone.utc)
+    updated = 0
+    for row in rows:
+        run_id = row["id"]
+        created = _parse_ts(row["created_at"])
+        age_sec = (now - created).total_seconds()
+        wall_sec = int(row["wall_clock_sec"] or 900)
+        has_diagnosis = bool(row["diagnosis_json"])
+
+        if has_diagnosis:
+            update_heal_run(
+                run_id,
+                status="ANALYZED",
+                finished_at=row["finished_at"] or _now(),
+            )
+            updated += 1
+            continue
+
+        if age_sec > wall_sec + 120:
+            update_heal_run(
+                run_id,
+                status="ABORTED",
+                abort_reason="STALE",
+                finished_at=_now(),
+            )
+            updated += 1
+    return updated
 
 
 def read_patch_preview(run_id: str) -> str:

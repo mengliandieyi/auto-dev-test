@@ -23,6 +23,10 @@ async def lifespan(app: FastAPI):
     ensure_env_loaded()
     job_store.init_jobs_db()
     job_store.recover_stale_running_jobs()
+    from heal.store import init_heal_db, recover_stale_heal_runs
+
+    init_heal_db()
+    recover_stale_heal_runs()
     sync_playwright_runtime()
     job_runner.start_worker_on_startup()
     yield

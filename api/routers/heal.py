@@ -59,10 +59,11 @@ def heal_analyze(body: HealAnalyzeRequest):
     run = create_heal_run(body.project_id, body.prd_id, parent_job_id=body.job_id)
     update_heal_run(
         run["id"],
-        status="RUNNING",
+        status="ANALYZED",
         diagnosis_json=diagnosis,
         token_cost=cost,
         parent_job_id=body.job_id,
+        finished_at=_now(),
     )
     return {"heal_run_id": run["id"], "diagnosis": diagnosis, "token_cost": cost}
 
@@ -79,6 +80,9 @@ def heal_get_run(run_id: str):
 @router.get("/runs")
 def heal_list_runs(project_id: str, prd_id: Optional[str] = None):
     validate_project_id(project_id)
+    from heal.store import recover_stale_heal_runs
+
+    recover_stale_heal_runs()
     return list_heal_runs(project_id, prd_id)
 
 

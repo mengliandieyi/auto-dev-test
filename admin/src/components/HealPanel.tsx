@@ -9,6 +9,7 @@ type Props = {
 
 const STATUS_LABEL: Record<string, string> = {
   SUCCESS: '成功',
+  ANALYZED: '已分析',
   RUNNING: '进行中',
   FAILED: '失败',
   ABORTED: '已放弃',
@@ -24,6 +25,7 @@ const CATEGORY_LABEL: Record<string, string> = {
 function healStatusBadge(status: string) {
   const cls =
     status === 'SUCCESS' ? 'badge-success' :
+    status === 'ANALYZED' ? 'badge-success' :
     status === 'FAILED' ? 'badge-failed' :
     status === 'RUNNING' ? 'badge-running' :
     status === 'ABORTED' ? 'badge-pending' : 'badge-pending';
@@ -40,7 +42,20 @@ function formatDiagnosis(run: HealRun): string {
 
 function formatTime(value?: string): string {
   if (!value) return '—';
-  return value.replace(' UTC', '').replace('T', ' ');
+  const iso = value.replace(' UTC', 'Z').replace(' ', 'T');
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return value.replace(' UTC', '');
+  }
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
 }
 
 function HealDetail({

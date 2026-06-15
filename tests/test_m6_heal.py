@@ -28,7 +28,7 @@ class TestM6Heal(unittest.TestCase):
         self.assertEqual(rc, 0)
 
     def test_heal_store_roundtrip(self):
-        from heal.store import create_heal_run, get_heal_run, init_heal_db
+        from heal.store import _now, create_heal_run, get_heal_run, init_heal_db, update_heal_run
         from api.config import JOBS_DB
 
         init_heal_db(JOBS_DB)
@@ -38,6 +38,30 @@ class TestM6Heal(unittest.TestCase):
         assert loaded is not None
         self.assertEqual(loaded["prd_id"], "PROJ-001")
         self.assertEqual(loaded["status"], "RUNNING")
+        update_heal_run(run["id"], status="ABORTED", abort_reason="TEST", finished_at=_now())
+
+    def test_recover_stale_analyzed_legacy(self):
+        from heal.store import (
+            _now,
+            create_heal_run,
+            get_heal_run,
+            init_heal_db,
+            recover_stale_heal_runs,
+            update_heal_run,
+        )
+        from api.config import JOBS_DB
+
+        init_heal_db(JOBS_DB)
+        run = create_heal_run("project-a", "PROJ-001")
+        update_heal_run(
+            run["id"],
+            diagnosis_json={"category": "test_script", "summary": "legacy"},
+        )
+        n = recover_stale_heal_runs()
+        self.assertGreaterEqual(n, 1)
+        loaded = get_heal_run(run["id"])
+        assert loaded is not None
+        self.assertEqual(loaded["status"], "ANALYZED")
 
 
 if __name__ == "__main__":
