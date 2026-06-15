@@ -16,6 +16,19 @@ const STATUS_LABEL: Record<string, string> = {
   ABORTED: '已放弃',
 };
 
+const ABORT_REASON_LABEL: Record<string, string> = {
+  NO_IMPROVEMENT: '修复无进展，已停止等待人工处理',
+  PRD_DRIFT: '需求偏差，需人工确认',
+  FLAKY_EXHAUSTED: '不稳定用例重跑仍失败',
+  CONFIG_ENV: '环境配置问题',
+  TOKEN_LIMIT: 'Token 超限',
+  WALL_CLOCK: '超时',
+  MAX_ITERATIONS: '达到最大迭代次数',
+  DISCARDED: '已放弃',
+};
+
+const MANUAL_APPLY_ABORT_REASONS = new Set(['NO_IMPROVEMENT', 'PRD_DRIFT']);
+
 const CATEGORY_LABEL: Record<string, string> = {
   prd_drift: '需求偏差',
   test_script: '测试脚本',
@@ -52,10 +65,20 @@ function HealDetail({
   onApply: () => void;
   onDiscard: () => void;
 }) {
-  const canApply = Boolean(run.patch_preview) && run.status !== 'ABORTED' && run.patch_preview !== '（无补丁预览）';
+  const canApply = Boolean(run.patch_preview)
+    && run.patch_preview !== '（无补丁预览）'
+    && (
+      run.status !== 'ABORTED'
+      || (run.abort_reason && MANUAL_APPLY_ABORT_REASONS.has(run.abort_reason))
+    );
 
   return (
     <div className="heal-inline-detail" data-testid="heal-diff-preview">
+      {run.status === 'ABORTED' && run.abort_reason && (
+        <div className="alert alert--warning heal-abort-hint">
+          {ABORT_REASON_LABEL[run.abort_reason] || run.abort_reason}
+        </div>
+      )}
       <div className="heal-detail-block">
         <strong>诊断结果</strong>
         <p className="heal-diagnosis">{formatDiagnosis(run)}</p>
@@ -201,7 +224,7 @@ export default function HealPanel({ projectId, prdId }: Props) {
         />
         <ActionButton
           title="自动修复循环"
-          desc="分析 + 生成补丁 + 重跑测试，可多轮尝试"
+          desc="分析 + 生成补丁 + 重跑；无进展时自动停止，由你决定是否采纳"
           className="action-card--primary"
           disabled={busy}
           data-testid="heal-loop-btn"

@@ -128,7 +128,7 @@ status: spec-only
 | 执行测试 | Playwright + Vitest，刷新 PASS/FAIL | 是 | `test` · M1 |
 | 一键全流程 | 生成链路 + 执行测试 | 是 | `run-full` · M1 |
 | 业务代码辅助 | OpenHands 在业务仓叠加代码；可按前端/后端分层，Skill 在工作台选择 | 否 | `dev` · **M6** |
-| AI 自愈 | 诊断、修复、重跑（有上限）；**须显式执行 `heal-loop`**，普通 `test` 失败不自动进入 | 是 | `heal-loop` · **M6** |
+| AI 自愈 | 诊断、修复、重跑（有上限）；**无进展自动停止**等人采纳；须显式 `heal-loop` | 是 | `heal-loop` · **M6** |
 
 ### 6.2 能力清单
 
@@ -149,10 +149,11 @@ status: spec-only
 | 测试脚本问题 | 可自动改生成脚本并重跑 |
 | 业务代码问题 | 可改业务仓并重跑 |
 | 需求与实现不一致 | **停止**自动修复，仅 diff，PM 处理 |
+| 修复无进展 | 连续一轮后失败用例未减少，或补丁为空 → **`NO_IMPROVEMENT` 停止**，保留 diff 供人工采纳 / 放弃 |
 | 环境/配置问题 | **不**调用 AI |
 | 偶发失败 | 自动重跑 1 次（无 LLM）；仍失败则 `FLAKY_EXHAUSTED` 停止 |
 
-护栏：≤3 轮、墙钟 15min、Token 单次 + 24h/PRD 上限；合入主分支前 Review diff。
+护栏：≤3 轮、墙钟 15min、Token 单次 + 24h/PRD 上限；`heal.stop_on_no_improvement` 默认 **true**；合入主分支前 Review diff。
 
 ---
 
@@ -250,9 +251,9 @@ status: spec-only
 ### M6 — 业务代码与 AI 自愈
 
 - [x] `run.py dev`：OpenHands + `resolve_ai_for_task(dev_*)`；`--layer frontend|backend|all`；Skill 可覆盖  
-- [x] 工作台：前端/后端 Skill 下拉 + 分层生成；产物面板；任务取消 / failure_hint / job-event 时间线  
-- [x] `heal-loop`：须**显式调用**；202 异步入队；分析完成 `ANALYZED`；修复记录回收与清理  
-- [x] 管理台：`heal-diff-preview`、采纳 / 放弃；`heal_runs` 审计含 token、`abort_reason`  
+- [x] 工作台：前端/后端 Skill 下拉 + 分层生成；**dev 完成提示** + **业务代码变更**（repos `git diff`）；产物面板；任务取消 / failure_hint / job-event 时间线  
+- [x] `heal-loop`：须**显式调用**；202 异步入队；分析完成 `ANALYZED`；**无进展 `NO_IMPROVEMENT` 停止**；修复记录回收与清理  
+- [x] 管理台：`heal-diff-preview`、采纳 / 放弃（含 `NO_IMPROVEMENT` / `PRD_DRIFT`）；`heal_runs` 审计含 token、`abort_reason`  
 
 ---
 
@@ -260,11 +261,13 @@ status: spec-only
 
 ### 9.1 Web（M3）
 
-选择项目 → **工作台**：PRD **预览**（或编辑）→ 生成链路 → 执行测试 → 查看追溯报告 / 产物  
+选择项目 → **工作台**：PRD **预览**（或编辑）→ 生成链路 → 执行测试 → 查看追溯报告 / 产物 / **业务代码变更**（dev 后）  
 
 侧栏全局：**API 设置**（多 profile LLM）、**Skill 库**（维护 OpenHands 规范）。  
 
-项目子导航：**工作台**（流水线 + 业务代码生成时选 Skill） / **环境**（URL、repos） / **AI 模型**（任务→profile 路由）。
+项目子导航：**工作台**（流水线 + 业务代码生成时选 Skill + 智能修复） / **环境**（URL、repos） / **AI 模型**（任务→profile 路由）。
+
+测试失败后：**分析失败原因** → 可选 **自动修复循环**；若无进展则停止并提示人工采纳补丁。
 
 ### 9.2 CI
 

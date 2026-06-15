@@ -65,8 +65,8 @@ cd admin && npm install && npm run dev
 - **API 设置**（`/settings`）：添加多条 LLM API（名称、接口类型、Key、地址、模型）；每条 profile **独立** Key（`.env` 中 `LLM_KEY_<名称>`）与 `base_url`（`global.yaml`）；支持 Anthropic 官方、DashScope 代理、OpenAI 兼容等
 - **Skill 库**（`/skills`）：左列表 + 右编辑器；上传/拖放 `.md`、新建空白；默认 **预览**，可切 **源码**
 - **项目**：侧栏选项目后 → **工作台** / **环境** / **AI 模型**；支持 **新建项目**（`POST /api/projects`）
-- **工作台**：PRD 列表、流水线、业务代码（Skill 下拉）、追溯报告（Markdown 预览）、产物、Heal 面板；**job-event 时间线**；执行记录默认 10 条可展开；**按项目清理历史**
-- **智能修复**：分析 → `ANALYZED`；自动修复循环异步入队；修复记录默认 5 条 + 清理历史
+- **工作台**：PRD 列表、流水线、业务代码（Skill 下拉）、**dev 完成后提示 repos 路径**、**业务代码变更**（git diff）、追溯报告（Markdown 预览）、产物、Heal 面板；**job-event 时间线**；执行记录默认 10 条可展开；**按项目清理历史**
+- **智能修复**：分析 → `ANALYZED`；自动修复循环异步入队；**失败用例未减少则 `NO_IMPROVEMENT` 停止**，可人工采纳补丁；修复记录默认 5 条 + 清理历史
 - **环境**（`/projects/:id/config`）：被测地址、repos、Vitest、webServer
 - **AI 模型**（`?tab=ai`）：PRD 解析 / 失败分析 / 前端代码 / 后端代码 四项任务绑定 profile（可「使用全局默认」）
 - API：`POST /api/pipeline/*` 返回 **202** 异步入队；`GET /api/pipeline/jobs/{id}` 轮询 `log_tail`；失败时返回 `failure_hint`；仪表盘 / 修复记录支持 **清理历史**
@@ -101,6 +101,7 @@ python3 -m unittest tests.test_m4_vitest -v
 | GET/PUT/DELETE | `/api/skills/{id}` | Skill 库读写 |
 | POST | `/api/skills/import` | 上传 `.md` |
 | GET | `/api/projects/{id}/artifacts/{prd_id}/*` | intermediate / 生成物 / 变更列表 |
+| GET | `/api/projects/{id}/repos/changes?layer=all` | 业务仓 git status / diff（只读） |
 
 管理台：侧栏 **API 设置**、**Skill 库**；项目 **工作台** PRD 预览/编辑/上传；**环境** / **AI 模型** 分 tab 保存。
 
@@ -129,7 +130,9 @@ python3 run.py heal-loop --project project-a --prd-id PROJ-001 --apply
 ```
 
 - `dev`：`--layer frontend|backend|all`；Skill 默认读 `config/projects/*.yaml` 的 `dev.frontend_skill` / `dev.backend_skill`，可用 `--skill-*` 或工作台下拉覆盖
+- 工作台 **dev 成功**后提示业务仓路径，**业务代码变更**面板只读展示 `repos` 下 `git status` / `git diff`（`GET /api/projects/{id}/repos/changes`）
 - 流程：test → report → flaky 重跑 → preflight → analyze → fix → retest
+- **无进展停止**：`config/global.yaml` → `heal.stop_on_no_improvement: true`（默认）；失败用例集合未缩小或补丁为空 → `NO_IMPROVEMENT`，管理台可采纳 / 放弃
 - 管理台采纳补丁：复制 `heal/fix-runs/{id}/tests/generated/` 预览文件到正式目录（非盲目重新 generate）
 - 审计：`heal_runs` 表（`tests/generated/jobs.db`）
 - 管理台：**分析失败** / **heal-loop** / diff 预览 / 采纳·放弃

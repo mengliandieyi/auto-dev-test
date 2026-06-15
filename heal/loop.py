@@ -17,6 +17,7 @@ def run_heal_loop(project_id: str, prd_id: str, *, dry_run: bool = True) -> int:
     from heal.fix import apply_fix, plan_fix
     from heal.flaky import collect_test_logs, extract_failures_from_reports, is_flaky_candidate
     from heal.preflight import run_preflight
+    from heal.progress import healing_stalled
     from heal.store import create_heal_run, read_patch_preview, update_heal_run
     from run import cmd_report, cmd_test
 
@@ -25,6 +26,7 @@ def run_heal_loop(project_id: str, prd_id: str, *, dry_run: bool = True) -> int:
     max_iter = int(heal_cfg.get("max_iterations", 3))
     wall_clock = int(heal_cfg.get("wall_clock_sec", 900))
     token_limit = float(heal_cfg.get("token_limit_per_run", 50000))
+    stop_on_no_improvement = bool(heal_cfg.get("stop_on_no_improvement", True))
 
     run = create_heal_run(
         project_id,
@@ -46,6 +48,7 @@ def run_heal_loop(project_id: str, prd_id: str, *, dry_run: bool = True) -> int:
 
     iteration = 0
     token_cost = 0.0
+    prev_failures: list[str] | None = None
     while iteration < max_iter:
         if time.time() - started > wall_clock:
             update_heal_run(
@@ -79,6 +82,26 @@ def run_heal_loop(project_id: str, prd_id: str, *, dry_run: bool = True) -> int:
         failures = extract_failures_from_reports(report_dir)
         report_path = report_dir / f"{prd_id}_traceability.txt"
         report_text = report_path.read_text(encoding="utf-8") if report_path.exists() else logs
+
+        if (
+            stop_on_no_improvement
+            and prev_failures is not None
+            and healing_stalled(prev_failures, failures)
+        ):
+            update_heal_run(
+                run_id,
+                status="ABORTED",
+                abort_reason="NO_IMPROVEMENT",
+                finished_at=_now(),
+                iteration=iteration,
+                token_cost=token_cost,
+            )
+            print(
+                "ABORTED: NO_IMPROVEMENT（修复后失败用例未减少，请人工查看补丁并决定是否采纳）",
+                file=sys.stderr,
+            )
+            print(read_patch_preview(run_id)[:2000])
+            return 1
 
         pre_ok, pre_msg = run_preflight(config)
         flaky = is_flaky_candidate(logs, base_unreachable=not pre_ok)
@@ -148,10 +171,26 @@ def run_heal_loop(project_id: str, prd_id: str, *, dry_run: bool = True) -> int:
 
         plan = plan_fix(diagnosis)
         update_heal_run(run_id, fix_plan_json=plan)
-        _, applied = apply_fix(project_id, prd_id, plan, patch_dir, dry_run=dry_run)
+        diffs, applied = apply_fix(project_id, prd_id, plan, patch_dir, dry_run=dry_run)
+        if stop_on_no_improvement and not diffs:
+            update_heal_run(
+                run_id,
+                status="ABORTED",
+                abort_reason="NO_IMPROVEMENT",
+                finished_at=_now(),
+                iteration=iteration,
+                token_cost=token_cost,
+            )
+            print(
+                "ABORTED: NO_IMPROVEMENT（未生成有效补丁，需人工介入）",
+                file=sys.stderr,
+            )
+            return 1
         if dry_run:
             print(f"  dry-run 补丁预览：{patch_dir}")
             print(read_patch_preview(run_id)[:1500])
+
+        prev_failures = list(failures)
 
     update_heal_run(
         run_id,

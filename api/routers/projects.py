@@ -1,8 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from api.models.schemas import CreateProjectRequest, TextContentRequest, ProjectSettingsForm
 from api.services import projects as project_service
 from api.services import project_settings as project_settings_service
+from api.services import repo_changes as repo_changes_service
 from api.services.path_safety import validate_project_id
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -46,3 +47,9 @@ def update_project_settings(project_id: str, body: ProjectSettingsForm):
 def update_project(project_id: str, body: TextContentRequest):
     validate_project_id(project_id)
     return project_service.write_project_yaml_text(project_id, body.content)
+
+
+@router.get("/{project_id}/repos/changes")
+def get_repo_changes(project_id: str, layer: str = Query("all")):
+    validate_project_id(project_id)
+    return repo_changes_service.list_repo_changes(project_id, layer)

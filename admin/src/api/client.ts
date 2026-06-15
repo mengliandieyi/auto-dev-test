@@ -254,6 +254,8 @@ export const api = {
     ),
   artifactChanges: (projectId: string, prdId: string) =>
     request<ArtifactChanges>(`/projects/${projectId}/artifacts/${prdId}/changes`),
+  repoChanges: (projectId: string, layer = 'all') =>
+    request<RepoChanges>(`/projects/${projectId}/repos/changes?layer=${encodeURIComponent(layer)}`),
   skills: () => request<SkillSummary[]>('/skills'),
   skill: (skillId: string) => request<SkillDetail>(`/skills/${skillId}`),
   createSkill: (skillId: string, content: string) =>
@@ -324,4 +326,21 @@ export type ArtifactChanges = {
   archives: { path: string; updated_at: string }[];
   diffs: { title: string; from_path: string; to_path: string; diff: string }[];
   heal_patches: { id: string; status?: string; created_at?: string; diff: string }[];
+};
+
+export type RepoChangeItem = {
+  layer: string;
+  configured_path: string;
+  absolute_path: string;
+  exists: boolean;
+  is_git_repo: boolean;
+  branch: string;
+  status_lines: string[];
+  diff_stat: string;
+  diff: string;
+  summary: string;
+};
+
+export type RepoChanges = {
+  repos: RepoChangeItem[];
 };

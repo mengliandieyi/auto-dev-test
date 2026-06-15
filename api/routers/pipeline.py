@@ -96,6 +96,22 @@ async def pipeline_dev(body: PipelineRequest):
     return await _enqueue("dev", body)
 
 
+@router.get("/jobs")
+def list_jobs(project_id: Optional[str] = Query(None), limit: int = Query(20)):
+    return [_to_job_response(j) for j in job_store.list_jobs(project_id=project_id, limit=limit)]
+
+
+@router.post("/jobs/prune")
+def prune_jobs(
+    keep: int = Query(100, ge=1, le=1000),
+    project_id: Optional[str] = Query(None),
+):
+    if project_id:
+        validate_project_id(project_id)
+    removed = job_store.prune_jobs(keep=keep, project_id=project_id)
+    return {"removed": removed, "keep": keep, "project_id": project_id}
+
+
 @router.post("/jobs/{job_id}/cancel", response_model=JobResponse)
 async def cancel_job(job_id: str):
     try:
@@ -124,19 +140,3 @@ def get_job(job_id: str):
         failure_hint=hint or "",
         events=job_store.read_job_events(job_id),
     )
-
-
-@router.post("/jobs/prune")
-def prune_jobs(
-    keep: int = Query(100, ge=1, le=1000),
-    project_id: Optional[str] = Query(None),
-):
-    if project_id:
-        validate_project_id(project_id)
-    removed = job_store.prune_jobs(keep=keep, project_id=project_id)
-    return {"removed": removed, "keep": keep, "project_id": project_id}
-
-
-@router.get("/jobs")
-def list_jobs(project_id: Optional[str] = Query(None), limit: int = Query(20)):
-    return [_to_job_response(j) for j in job_store.list_jobs(project_id=project_id, limit=limit)]

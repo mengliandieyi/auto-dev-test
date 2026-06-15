@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api, Job, Prd, Report, SkillSummary } from '../api/client';
 import HealPanel from '../components/HealPanel';
 import ArtifactsPanel from '../components/ArtifactsPanel';
+import RepoChangesPanel from '../components/RepoChangesPanel';
 import { MarkdownPreview } from '../components/MarkdownWorkspace';
 import { ActionButton } from '../components/HelpTip';
 import { JobLogSummary } from '../components/JobLogSummary';
@@ -83,6 +84,8 @@ export default function ProjectDetail() {
   const [loadingJobId, setLoadingJobId] = useState<string | null>(null);
   const [jobMessage, setJobMessage] = useState('');
   const [showAllJobs, setShowAllJobs] = useState(false);
+  const [repoChangesRefreshKey, setRepoChangesRefreshKey] = useState(0);
+  const [lastDevLayer, setLastDevLayer] = useState<string>('all');
 
   const visibleJobs = useMemo(
     () => (showAllJobs ? jobs : jobs.slice(0, JOB_HISTORY_PAGE)),
@@ -138,6 +141,11 @@ export default function ProjectDetail() {
         if (job.status === 'SUCCESS' || job.status === 'FAILED' || job.status === 'CANCELLED') {
           stopPolling();
           setBusy(false);
+          if (job.command === 'dev' && job.status === 'SUCCESS') {
+            const layer = String(job.args?.layer || 'all');
+            setLastDevLayer(layer);
+            setRepoChangesRefreshKey((k) => k + 1);
+          }
           load();
         }
       } catch {
@@ -161,6 +169,7 @@ export default function ProjectDetail() {
       if (action.startsWith('dev-')) {
         pipelineAction = 'dev';
         body.layer = action.replace('dev-', '');
+        setLastDevLayer(String(body.layer));
         if (devSkillFrontend) body.skill_frontend = devSkillFrontend;
         if (devSkillBackend) body.skill_backend = devSkillBackend;
       }
@@ -348,9 +357,26 @@ export default function ProjectDetail() {
               )}
             </div>
             <JobLogSummary job={activeJob} />
+            {activeJob.command === 'dev' && activeJob.status === 'SUCCESS' && (
+              <div className="alert alert--success dev-complete-hint" data-testid="dev-complete-hint">
+                <p>
+                  业务代码已写入配置的业务仓（
+                  {lastDevLayer === 'frontend' ? '前端' : lastDevLayer === 'backend' ? '后端' : '前后端'}
+                  ）。
+                  请在下方「业务代码变更」查看 git diff 与影响文件。
+                </p>
+                <Link to={`/projects/${projectId}/config`}>前往环境配置（repos 路径）</Link>
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      <RepoChangesPanel
+        projectId={projectId}
+        refreshKey={repoChangesRefreshKey}
+        highlightLayer={lastDevLayer}
+      />
 
       {selectedPrd && (
         <ArtifactsPanel projectId={projectId} prdId={selectedPrd.prd_id} />

@@ -76,6 +76,65 @@ class TestM6Heal(unittest.TestCase):
         removed = prune_heal_runs(keep=2, project_id="project-a", prd_id="PROJ-001")
         self.assertGreaterEqual(removed, 1)
 
+    def test_healing_progress(self):
+        from heal.progress import healing_improved, healing_stalled
+
+        self.assertTrue(healing_improved(["a", "b"], ["a"]))
+        self.assertFalse(healing_improved(["a"], ["a", "b"]))
+        self.assertTrue(healing_stalled(["a", "b"], ["a", "b", "c"]))
+        self.assertTrue(healing_stalled(["a"], ["b"]))
+
+    def test_heal_loop_stops_on_no_improvement(self):
+        from heal.loop import run_heal_loop
+
+        failures = ["login should work"]
+        analyze_calls = {"n": 0}
+
+        def fake_analyze(*_args, **_kwargs):
+            analyze_calls["n"] += 1
+            return {"category": "test_script", "summary": "mock"}, 0.0
+
+        with patch("run.cmd_test", return_value=1), patch("run.cmd_report", return_value=0), patch(
+            "heal.flaky.extract_failures_from_reports",
+            return_value=failures,
+        ), patch("heal.flaky.collect_test_logs", return_value="AssertionError"), patch(
+            "heal.preflight.run_preflight",
+            return_value=(True, ""),
+        ), patch("heal.flaky.is_flaky_candidate", return_value=False), patch(
+            "heal.analyze.analyze_failure",
+            side_effect=fake_analyze,
+        ), patch("heal.fix.apply_fix", return_value=(["diff"], False)):
+            rc = run_heal_loop("project-a", "PROJ-001", dry_run=True)
+
+        self.assertEqual(rc, 1)
+        self.assertEqual(analyze_calls["n"], 1)
+
+    def test_heal_loop_stops_when_fix_empty(self):
+        from heal.loop import run_heal_loop
+        from heal.store import get_heal_run, init_heal_db, list_heal_runs
+        from api.config import JOBS_DB
+
+        init_heal_db(JOBS_DB)
+        before = len(list_heal_runs("project-a", "PROJ-001"))
+
+        with patch("run.cmd_test", return_value=1), patch("run.cmd_report", return_value=0), patch(
+            "heal.flaky.extract_failures_from_reports",
+            return_value=["only failure"],
+        ), patch("heal.flaky.collect_test_logs", return_value="AssertionError"), patch(
+            "heal.preflight.run_preflight",
+            return_value=(True, ""),
+        ), patch("heal.flaky.is_flaky_candidate", return_value=False), patch(
+            "heal.analyze.analyze_failure",
+            return_value=({"category": "test_script"}, 0.0),
+        ), patch("heal.fix.apply_fix", return_value=([], False)):
+            rc = run_heal_loop("project-a", "PROJ-001", dry_run=True)
+
+        self.assertEqual(rc, 1)
+        runs = list_heal_runs("project-a", "PROJ-001")
+        self.assertGreater(len(runs), before)
+        latest = runs[0]
+        self.assertEqual(latest["abort_reason"], "NO_IMPROVEMENT")
+
 
 if __name__ == "__main__":
     unittest.main()
