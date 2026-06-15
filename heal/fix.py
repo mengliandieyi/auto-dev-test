@@ -69,10 +69,30 @@ def apply_fix(
 
 
 def apply_patch_dir(patch_dir: Path, project_id: str, prd_id: str) -> bool:
+    if not patch_dir.is_dir():
+        return False
+
     meta = patch_dir / "meta.txt"
     if meta.exists():
         prd_id = meta.read_text(encoding="utf-8").strip() or prd_id
-    subprocess.run(
+
+    staged_root = patch_dir / "tests" / "generated"
+    if staged_root.is_dir():
+        staged_files = [p for p in staged_root.rglob("*") if p.is_file()]
+        if staged_files:
+            gen_dir = ROOT / "tests" / "generated" / project_id
+            gen_dir.mkdir(parents=True, exist_ok=True)
+            for src in staged_files:
+                rel = src.relative_to(staged_root)
+                dst = gen_dir / rel
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dst)
+            return True
+
+    if (patch_dir / "business_code.TODO.md").exists():
+        return False
+
+    result = subprocess.run(
         [
             sys.executable,
             str(ROOT / "run.py"),
@@ -86,7 +106,7 @@ def apply_patch_dir(patch_dir: Path, project_id: str, prd_id: str) -> bool:
         cwd=str(ROOT),
         check=False,
     )
-    return True
+    return result.returncode == 0
 
 
 def discard_patch_dir(patch_dir: Path) -> None:

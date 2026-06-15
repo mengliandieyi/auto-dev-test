@@ -1,6 +1,6 @@
 ---
 prd_id: AUTODEV-001
-version: 4.4.1
+version: 4.4.2
 author: admin
 date: 2026-06-15
 status: spec-only
@@ -111,8 +111,9 @@ status: spec-only
 | 项目负责人 | 多项目独立接入 | 互不干扰 |
 | CI 管理员 | PRD 变更跑生成、代码 PR 只跑测试 | 省钱且安全 |
 | 前端 | 用 TypeUI + testid 设计页面 | UI 统一且可测 |
-| 产品经理 | 在管理台编辑/上传 PRD | 需求快速进流水线（M5） |
-| 运维 | 在管理台维护项目 URL、鉴权 | 凭据不进 yaml（M5 写配置） |
+| 产品经理 | 在管理台预览/编辑/上传 PRD | 需求快速进流水线（M5） |
+| 运维 | 在管理台维护项目 URL、LLM API、鉴权 | 密钥不进 yaml（M5 写配置） |
+| 开发 | 在 Skill 库维护 OpenHands 规范，工作台生成业务代码时选择 | M6 `dev` |
 | 开发/测试 | 失败后 AI 诊断并可选修复 | 少翻 log；合入前 Review diff（M6） |
 
 ---
@@ -126,7 +127,7 @@ status: spec-only
 | 生成链路 | 校验→解析→生成→刷新追溯视图 | 否 | `generate-pipeline` · M1 |
 | 执行测试 | Playwright + Vitest，刷新 PASS/FAIL | 是 | `test` · M1 |
 | 一键全流程 | 生成链路 + 执行测试 | 是 | `run-full` · M1 |
-| 业务代码辅助 | OpenHands 在业务仓叠加代码 | 否 | `dev` · **M6** |
+| 业务代码辅助 | OpenHands 在业务仓叠加代码；可按前端/后端分层，Skill 在工作台选择 | 否 | `dev` · **M6** |
 | AI 自愈 | 诊断、修复、重跑（有上限）；**须显式执行 `heal-loop`**，普通 `test` 失败不自动进入 | 是 | `heal-loop` · **M6** |
 
 ### 6.2 能力清单
@@ -220,8 +221,12 @@ status: spec-only
 ### M3 — Web 管理后台
 
 - [x] 启动后端 + 前端，可访问仪表盘与项目详情  
-- [x] 只读：PRD 列表、预览、追溯报告  
-- [x] 触发：校验 / 解析 / 生成 / 生成链路 / 执行测试 / **一键全流程**（`POST /api/pipeline/run-full`）  
+- [x] 只读：PRD 列表、**Markdown 预览**、追溯报告  
+- [x] **API 设置**：多条 LLM API（独立 Key / 接口地址 / 模型）；表单保存，无需手写 YAML；刷新后保留 Key 预览  
+- [x] **Skill 库**：`.md` 规范上传、预览与编辑；工作台生成业务代码时选择 Skill（非环境页）  
+- [x] 侧栏：仪表盘 / API 设置 / Skill 库；项目下 **工作台 / 环境 / AI 模型**  
+- [x] **新建项目**（`POST /api/projects`）  
+- [x] 触发：校验 / 解析 / 生成 / 生成链路 / 执行测试 / **一键全流程** / **分层 dev**（`POST /api/pipeline/dev`）  
 - [x] 异步入队 + 日志轮询；Worker 并发默认 2  
 - [x] 读接口路径安全（防穿越、防 symlink）  
 
@@ -234,16 +239,19 @@ status: spec-only
 ### M5 — 编辑与 CI
 
 - [x] PRD / YAML 在线编辑与上传（写接口 + 安全单测）  
+- [x] 项目 **环境** 表单：被测地址、repos、Vitest、webServer（`GET/PUT /api/projects/{id}/settings`）  
+- [x] 项目 **AI 模型**：PRD 解析 / 失败分析 / 前端代码 / 后端代码 任务路由（可覆盖全局）  
+- [x] PRD **Markdown 预览**（默认渲染正文；编辑时 **源码 | 预览** 切换）  
 - [x] GitHub Actions / GitLab CI / Jenkins 模板（`ci/`）  
 - [x] PRD 或 intermediate 变更 → `generate-pipeline`；日常 PR → `test`  
 - [x] 自动 commit 生成物带 `[skip ci]`  
 
 ### M6 — 业务代码与 AI 自愈
 
-- [x] `run.py dev`：OpenHands 在 `repos` 叠加代码（不承诺部署）  
-- [x] 组件测试可切换 `vitest.frontend_root` 至真实业务仓  
+- [x] `run.py dev`：OpenHands 在 `repos` 叠加代码；`--layer frontend|backend|all`；Skill 可覆盖  
+- [x] 工作台：前端/后端 Skill 下拉 + 三个生成按钮；产物面板浏览 intermediate / spec  
 - [x] `heal-loop`：须**显式调用**；流程 report → flaky 重跑 → preflight → analyze → fix → retest；需求漂移时中止（`abort_reason=PRD_DRIFT`）  
-- [x] 管理台：`heal-diff-preview`、采纳/放弃  
+- [x] 管理台：`heal-diff-preview`、采纳（复制预览补丁）/ 放弃  
 - [x] `heal_runs` 审计含 token、`abort_reason`（`CONFIG_ENV` / `FLAKY_EXHAUSTED` / `TOKEN_LIMIT` / `PRD_DRIFT` 等）  
 
 ---
@@ -252,7 +260,11 @@ status: spec-only
 
 ### 9.1 Web（M3）
 
-选择项目 → PRD → 生成链路 → 执行测试 → 查看追溯报告  
+选择项目 → **工作台**：PRD **预览**（或编辑）→ 生成链路 → 执行测试 → 查看追溯报告 / 产物  
+
+侧栏全局：**API 设置**（多 profile LLM）、**Skill 库**（维护 OpenHands 规范）。  
+
+项目子导航：**工作台**（流水线 + 业务代码生成时选 Skill） / **环境**（URL、repos） / **AI 模型**（任务→profile 路由）。
 
 ### 9.2 CI
 
@@ -262,7 +274,11 @@ status: spec-only
 ### 9.3 本地调试（M1）
 
 ```bash
-export ANTHROPIC_API_KEY=...   # 仅 parse 需要；generate 为模板、无 Key 也可跑（需已有 intermediate）
+# 仅 parse 需要 LLM；generate 为模板、无 Key 也可跑（需已有 intermediate）
+# 推荐在管理台「API 设置」配置；或环境变量：
+export USE_LLM_PARSE=1
+export ANTHROPIC_API_KEY=...          # 全局回退
+export LLM_KEY_SONNET=...             # 按 profile 独立 Key（可选）
 
 python3 run.py run-full \
   --project project-a \
@@ -276,7 +292,7 @@ python3 run.py run-full \
 | 类别 | 要求 |
 |------|------|
 | 运行时 | Python 3.9+，Node.js 18+（依赖见 TECH §17） |
-| 密钥 | `ANTHROPIC_API_KEY`（**parse** · M1；**heal** · M6）；项目凭据仅环境变量 |
+| 密钥 | LLM Key 存本地 `.env`（不进 git）：按 profile `LLM_KEY_<名称>`（如 `LLM_KEY_SONNET`）+ 可选全局 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`；`base_url` 进 `global.yaml`；项目鉴权凭据仅环境变量 |
 | Git 资产 | 生成脚本、intermediate 提交；`meta.db`、`jobs.db` 不提交 |
 | 报告 | M1 文本矩阵必达；Playwright HTML 为可选（`report.format` 含 html 时） |
 | 可用性 | M3 起管理台内网可用；首版无登录 |
@@ -306,7 +322,9 @@ python3 run.py run-full \
 | `prds/project-a/PROJ-001_login.md` | M1 基准 PRD |
 | `config/projects/project-a.yaml` | M1 项目配置（与 TECH §11.1 一致） |
 | `config/projects/project-b.yaml` | 多项目路径隔离（与 TECH §11.2 一致） |
-| `config/global.yaml` | 全局配置（与 TECH §11.3 一致） |
+| `config/global.yaml` | 全局配置（多模型 profile、`base_url`、`tasks.parse/heal/dev_*`；与 TECH §11.3 一致） |
+| `skills/*.md` | OpenHands 开发规范（管理台 Skill 库；`dev` 引用，工作台可临时覆盖） |
+| `.env.example` | 本地密钥模板（复制为 `.env`） |
 | `tests/fixtures/mock-e2e/` | M1 E2E 静态站（实现时按 TECH §3.1 创建） |
 | `tests/fixtures/mock-frontend/` | M1 Vitest 目标仓（实现时按 TECH §3.1 创建） |
 | `tests/fixtures/test_data.json` | 全局占位符数据源（可被 `tests/fixtures/{project}/test_data.json` 覆盖） |

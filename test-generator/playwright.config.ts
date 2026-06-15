@@ -38,5 +38,15 @@ export default defineConfig({
         navigationTimeout: 60_000,
       },
     },
+    {
+      name: 'project-b',
+      testDir: path.join(__dirname, '../tests/generated/project-b/e2e'),
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: process.env.PROJECT_B_BASE_URL || 'http://127.0.0.1:4174',
+        actionTimeout: 30_000,
+        navigationTimeout: 60_000,
+      },
+    },
   ],
 });

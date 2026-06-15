@@ -107,6 +107,113 @@ class TestM5WriteSecurity(unittest.TestCase):
             finally:
                 self._restore_repo(old, ac, ps, proj)
 
+    def test_global_yaml_roundtrip(self):
+        import api.services.global_settings as gs
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old, ac, ps, proj = self._isolate_repo(tmp)
+            gs.REPO_ROOT = Path(tmp)
+            (Path(tmp) / "config").mkdir(parents=True, exist_ok=True)
+            try:
+                yaml_text = (
+                    "ai:\n  provider: anthropic\n  model: claude-sonnet-4-5\n"
+                    "  max_tokens: 4096\n"
+                )
+                gs.write_global_yaml_text(yaml_text)
+                self.assertEqual(gs.read_global_yaml_text()["content"], yaml_text)
+            finally:
+                gs.REPO_ROOT = old
+                self._restore_repo(old, ac, ps, proj)
+
+    def test_reject_secret_in_global_yaml(self):
+        import api.services.global_settings as gs
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old, ac, ps, proj = self._isolate_repo(tmp)
+            gs.REPO_ROOT = Path(tmp)
+            (Path(tmp) / "config").mkdir(parents=True, exist_ok=True)
+            try:
+                with self.assertRaises(HTTPException) as ctx:
+                    gs.write_global_yaml_text("ai:\n  api_key: sk-ant-secret\n")
+                self.assertIn("environment", ctx.exception.detail.lower())
+            finally:
+                gs.REPO_ROOT = old
+                self._restore_repo(old, ac, ps, proj)
+
+    def test_ai_settings_form_roundtrip(self):
+        import api.config as api_config
+        import api.services.global_settings as gs
+        import api.services.path_safety as ps
+        import env_store as es
+
+        with tempfile.TemporaryDirectory() as tmp:
+            troot = Path(tmp)
+            (troot / "config").mkdir(parents=True)
+            (troot / "config" / "global.yaml").write_text(
+                "heal:\n  max_iterations: 3\nai:\n  provider: anthropic\n  default: sonnet\n"
+                "  models:\n    sonnet:\n      model: claude-sonnet-4-5\n      max_tokens: 8096\n"
+                "  tasks:\n    parse: sonnet\n    heal: sonnet\n",
+                encoding="utf-8",
+            )
+            old = api_config.REPO_ROOT
+            old_env = es.ENV_PATH
+            api_config.REPO_ROOT = troot
+            ps.REPO_ROOT = troot
+            gs.REPO_ROOT = troot
+            es.ENV_PATH = troot / ".env"
+            try:
+                body = {
+                    "provider": "anthropic",
+                    "default_profile": "haiku",
+                    "profiles": [
+                        {
+                            "id": "sonnet",
+                            "provider": "anthropic",
+                            "model": "claude-sonnet-4-5",
+                            "max_tokens": 8096,
+                            "base_url": "https://proxy.example.com",
+                            "api_key": "sk-ant-sonnet-key-1234",
+                        },
+                        {
+                            "id": "haiku",
+                            "provider": "anthropic",
+                            "model": "claude-haiku-3-5",
+                            "max_tokens": 4096,
+                            "base_url": "",
+                        },
+                    ],
+                    "tasks": {
+                        "parse": "haiku",
+                        "heal": "sonnet",
+                        "dev_frontend": "sonnet",
+                        "dev_backend": "haiku",
+                    },
+                }
+                saved = gs.write_ai_settings_form(body)
+                self.assertEqual(saved["tasks"]["parse"], "haiku")
+                self.assertEqual(saved["tasks"]["dev_backend"], "haiku")
+                parsed = gs._load_global_parsed()
+                self.assertEqual(parsed["heal"]["max_iterations"], 3)
+                self.assertEqual(parsed["ai"]["models"]["haiku"]["model"], "claude-haiku-3-5")
+                self.assertEqual(
+                    parsed["ai"]["models"]["sonnet"]["base_url"],
+                    "https://proxy.example.com",
+                )
+                self.assertNotIn("base_url", parsed["ai"]["models"]["haiku"])
+                self.assertTrue(saved["profiles"][0]["api_key_set"])
+                self.assertEqual(es.read_profile_api_key("sonnet"), "sk-ant-sonnet-key-1234")
+
+                reread = gs.read_ai_settings_form()
+                sonnet = next(p for p in reread["profiles"] if p["id"] == "sonnet")
+                self.assertEqual(sonnet["base_url"], "https://proxy.example.com")
+                self.assertTrue(sonnet["api_key_set"])
+                self.assertIn("…", sonnet["api_key_preview"])
+            finally:
+                api_config.REPO_ROOT = old
+                ps.REPO_ROOT = old
+                gs.REPO_ROOT = old
+                es.ENV_PATH = old_env
+
 
 if __name__ == "__main__":
     unittest.main()

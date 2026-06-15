@@ -11,6 +11,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).parent
+sys.path.insert(0, str(ROOT))
+from env_store import ensure_env_loaded  # noqa: E402
+
+ensure_env_loaded()
 sys.path.insert(0, str(ROOT / "prd-parser"))
 sys.path.insert(0, str(ROOT / "test-generator"))
 sys.path.insert(0, str(ROOT / "component-generator"))
@@ -105,7 +109,8 @@ def cmd_test(args) -> int:
     if layer in ("e2e", "all"):
         print(f"\n── Playwright E2E（{args.project}）──")
         env = os.environ.copy()
-        env["PROJECT_A_BASE_URL"] = config.get("base_url", "http://127.0.0.1:4173")
+        proj_env_key = f"PROJECT_{args.project.upper().replace('-', '_')}_BASE_URL"
+        env[proj_env_key] = config.get("base_url", "http://127.0.0.1:4173")
         env["PLAYWRIGHT_REPORT_DIR"] = str(report_dir)
         r = subprocess.run(
             ["npx", "playwright", "test", "--config=test-generator/playwright.config.ts", f"--project={args.project}"],
@@ -163,7 +168,13 @@ def cmd_dev(args) -> int:
     sys.path.insert(0, str(ROOT))
     from heal.dev import run_dev
 
-    return run_dev(args.project, args.prd)
+    return run_dev(
+        args.project,
+        args.prd,
+        layer=getattr(args, "layer", "all"),
+        skill_frontend=getattr(args, "skill_frontend", None),
+        skill_backend=getattr(args, "skill_backend", None),
+    )
 
 
 def main():
@@ -209,6 +220,9 @@ def main():
     p_dev = sub.add_parser("dev")
     p_dev.add_argument("--project", required=True)
     p_dev.add_argument("--prd", required=True)
+    p_dev.add_argument("--layer", choices=["frontend", "backend", "all"], default="all")
+    p_dev.add_argument("--skill-frontend", dest="skill_frontend", default=None)
+    p_dev.add_argument("--skill-backend", dest="skill_backend", default=None)
 
     args = parser.parse_args()
     handlers = {

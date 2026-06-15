@@ -36,9 +36,13 @@ async def _enqueue(command: str, body: PipelineRequest) -> JobResponse:
         args["type"] = body.type
     if body.layer:
         args["layer"] = body.layer
+    if body.skill_frontend:
+        args["skill_frontend"] = body.skill_frontend
+    if body.skill_backend:
+        args["skill_backend"] = body.skill_backend
     if body.force:
         args["force"] = True
-    if command in ("validate", "parse", "generate-pipeline", "run-full") and not prd:
+    if command in ("validate", "parse", "generate-pipeline", "run-full", "dev") and not prd:
         raise HTTPException(400, "prd is required")
     if command == "generate" and not body.prd_id:
         raise HTTPException(400, "prd_id is required")
@@ -79,6 +83,13 @@ async def pipeline_test(body: PipelineRequest):
 @router.post("/report", response_model=JobResponse, status_code=202)
 async def pipeline_report(body: PipelineRequest):
     return await _enqueue("report", body)
+
+
+@router.post("/dev", response_model=JobResponse, status_code=202)
+async def pipeline_dev(body: PipelineRequest):
+    if body.layer not in ("frontend", "backend", "all"):
+        raise HTTPException(400, "layer must be frontend, backend, or all")
+    return await _enqueue("dev", body)
 
 
 @router.get("/jobs/{job_id}", response_model=JobDetailResponse)

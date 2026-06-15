@@ -9,6 +9,8 @@ from typing import Any
 
 import yaml
 
+from ai_resolver import merge_project_config
+
 ROOT = Path(__file__).parent
 
 
@@ -52,5 +54,12 @@ def load_project_config(project_id: str) -> dict:
     global_cfg: dict = {}
     if global_path.exists():
         global_cfg = yaml.safe_load(global_path.read_text(encoding="utf-8")) or {}
-    merged = {**global_cfg, **raw}
+    merged = merge_project_config(global_cfg, raw)
     return _resolve_node(merged)
+
+
+def load_global_config() -> dict:
+    global_path = ROOT / "config" / "global.yaml"
+    if not global_path.exists():
+        return {}
+    return yaml.safe_load(global_path.read_text(encoding="utf-8")) or {}

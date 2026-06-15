@@ -37,6 +37,67 @@ def _parse_front_matter(path: Path) -> Dict[str, str]:
         return {}
 
 
+def _project_dirs(project_id: str) -> List[Path]:
+    return [
+        REPO_ROOT / "prds" / project_id,
+        REPO_ROOT / "tests" / "intermediate" / project_id,
+        REPO_ROOT / "tests" / "generated" / project_id,
+        REPO_ROOT / "tests" / "archive" / project_id,
+        REPO_ROOT / "reports" / project_id,
+    ]
+
+
+def create_project(project_id: str, project_name: str, base_url: str) -> Dict[str, Any]:
+    from api.services.path_safety import validate_new_project_id
+
+    validate_new_project_id(project_id)
+    base_url = base_url.strip().rstrip("/")
+    if not base_url:
+        raise HTTPException(status_code=400, detail="base_url is required")
+
+    name = (project_name or project_id).strip()
+    cred_env = project_id.upper().replace("-", "_") + "_CREDENTIALS"
+    cfg: Dict[str, Any] = {
+        "project_id": project_id,
+        "project_name": name,
+        "base_url": base_url,
+        "prd_dir": f"./prds/{project_id}/",
+        "intermediate_dir": f"./tests/intermediate/{project_id}/",
+        "test_output_dir": f"./tests/generated/{project_id}/",
+        "archive_dir": f"./tests/archive/{project_id}/",
+        "report": {"format": "text", "output_dir": f"./reports/{project_id}/"},
+        "vitest": {"enabled": False},
+        "auth": {
+            "type": "cookie",
+            "login_url": "/login",
+            "credentials_env": cred_env,
+        },
+        "dev": {
+            "frontend_skill": "clean-ui",
+            "backend_skill": "go-api",
+        },
+    }
+
+    config_dir = (REPO_ROOT / "config" / "projects").resolve()
+    config_path = (config_dir / f"{project_id}.yaml").resolve()
+    if config_dir not in config_path.parents:
+        raise HTTPException(status_code=400, detail="Invalid project config path")
+
+    for folder in _project_dirs(project_id):
+        folder.mkdir(parents=True, exist_ok=True)
+
+    text = yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False)
+    config_path.write_text(text, encoding="utf-8")
+
+    return {
+        "id": project_id,
+        "name": name,
+        "base_url": base_url,
+        "prd_dir": cfg["prd_dir"],
+        "path": str(config_path.relative_to(REPO_ROOT.resolve())),
+    }
+
+
 def list_projects() -> List[Dict[str, Any]]:
     projects_dir = REPO_ROOT / "config" / "projects"
     items = []
@@ -46,7 +107,7 @@ def list_projects() -> List[Dict[str, Any]]:
             cfg = yaml.safe_load(f) or {}
         items.append({
             "id": project_id,
-            "name": cfg.get("name", project_id),
+            "name": cfg.get("project_name") or cfg.get("name", project_id),
             "base_url": cfg.get("base_url", ""),
             "prd_dir": cfg.get("prd_dir", f"./prds/{project_id}/"),
         })

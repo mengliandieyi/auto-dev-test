@@ -108,6 +108,9 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
 
+      - name: unit tests
+        run: bash scripts/run-unit-tests.sh
+
       - name: test
         run: python3 run.py test --project "${{ env.PROJECT_ID }}" --layer all
 

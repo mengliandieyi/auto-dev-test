@@ -2,10 +2,10 @@
   "prd_id": "PROJ-001",
   "prd_version": "1.0.0",
   "project": "project-a",
-  "parsed_at": "2026-06-15T06:32:50.180849+00:00",
+  "parsed_at": "2026-06-15T07:36:58.239042+00:00",
   "generated_at": null,
   "prd_content_hash": "9efe329dcd748d46138792c49219da0672d224531d6aae41b270714a13cc6850",
-  "source_git_sha": null,
+  "source_git_sha": "541a18e8f75830ff756c946af9c75dca0d4db113",
   "feature_name": "用户登录",
   "feature": null,
   "test_data": {},
@@ -27,14 +27,14 @@
           "action": "fill",
           "testid": "username-input",
           "target": null,
-          "value": "test@example.com",
+          "value": "{{valid.username}}",
           "type": null
         },
         {
           "action": "fill",
           "testid": "password-input",
           "target": null,
-          "value": "Test1234!",
+          "value": "{{valid.password}}",
           "type": null
         },
         {
@@ -78,14 +78,14 @@
           "action": "fill",
           "testid": "username-input",
           "target": null,
-          "value": "test@example.com",
+          "value": "{{valid.username}}",
           "type": null
         },
         {
           "action": "fill",
           "testid": "password-input",
           "target": null,
-          "value": "WrongPass!",
+          "value": "{{invalid.password}}",
           "type": null
         },
         {

@@ -13,7 +13,10 @@ heal/fix-runs/
 tests/generated/jobs.db
 
 node_modules/
+admin/dist/
+*.tsbuildinfo
 __pycache__/
 *.pyc
 .venv/
+.env
 

@@ -25,12 +25,18 @@ def _get_semaphore() -> asyncio.Semaphore:
 
 def build_argv(command: str, project_id: str, args: Dict[str, Any]) -> List[str]:
     base = ["python3", str(REPO_ROOT / "run.py"), command, "--project", project_id]
-    prd_cmds = ("validate", "parse", "generate-pipeline", "run-full")
+    prd_cmds = ("validate", "parse", "generate-pipeline", "run-full", "dev")
     if command in prd_cmds:
         prd = args.get("prd_path") or args.get("prd")
         if not prd:
             raise ValueError("prd is required")
         base.extend(["--prd", prd])
+    if command == "dev":
+        base.extend(["--layer", args.get("layer", "all")])
+        if args.get("skill_frontend"):
+            base.extend(["--skill-frontend", args["skill_frontend"]])
+        if args.get("skill_backend"):
+            base.extend(["--skill-backend", args["skill_backend"]])
     if command == "generate":
         base.extend(["--prd-id", args["prd_id"]])
         base.extend(["--type", args.get("type", "all")])

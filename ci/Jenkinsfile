@@ -41,6 +41,7 @@ pipeline {
 
         stage('Test') {
             steps {
+                sh 'bash scripts/run-unit-tests.sh'
                 sh "python3 run.py test --project ${params.PROJECT_ID} --layer all"
             }
         }

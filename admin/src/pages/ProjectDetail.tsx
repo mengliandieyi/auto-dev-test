@@ -1,11 +1,74 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api, Job, Prd, Report } from '../api/client';
+import { api, Job, Prd, Report, SkillSummary } from '../api/client';
 import HealPanel from '../components/HealPanel';
+import ArtifactsPanel from '../components/ArtifactsPanel';
+import { ActionButton } from '../components/HelpTip';
+import Select from '../components/Select';
 
-function prdIdFromFilename(filename: string): string {
-  return filename.split('_')[0];
+const COMMAND_LABELS: Record<string, string> = {
+  validate: '检查 PRD',
+  parse: '提取用例',
+  generate: '生成脚本',
+  'generate-pipeline': '一键生成',
+  test: '运行测试',
+  'run-full': '生成并运行',
+  report: '验收报告',
+  dev: '生成业务代码',
+};
+
+const DEV_LAYER_LABELS: Record<string, string> = {
+  frontend: '生成前端代码',
+  backend: '生成后端代码',
+  all: '前后端都生成',
+};
+
+function jobLabel(job: Job): string {
+  if (job.command === 'dev') {
+    const layer = job.args?.layer as string | undefined;
+    if (layer && DEV_LAYER_LABELS[layer]) return DEV_LAYER_LABELS[layer];
+  }
+  return COMMAND_LABELS[job.command] || job.command;
 }
+
+const PIPELINE_GROUPS = [
+  {
+    label: '检查',
+    actions: [{ id: 'validate', title: '检查 PRD' }],
+  },
+  {
+    label: '生成',
+    actions: [
+      { id: 'parse', title: '提取用例' },
+      { id: 'generate', title: '生成脚本' },
+      { id: 'generate-pipeline', title: '一键生成', primary: true, testId: 'pipeline-generate-btn' },
+    ],
+  },
+  {
+    label: '业务代码',
+    actions: [
+      { id: 'dev-frontend', title: '生成前端代码', primary: true, testId: 'pipeline-dev-frontend-btn' },
+      { id: 'dev-backend', title: '生成后端代码', testId: 'pipeline-dev-backend-btn' },
+      { id: 'dev-all', title: '前后端都生成', primary: true, testId: 'pipeline-dev-all-btn' },
+    ],
+  },
+  {
+    label: '运行',
+    actions: [
+      { id: 'test', title: '运行测试', primary: true, testId: 'pipeline-test-btn' },
+      { id: 'run-full', title: '生成并运行', primary: true, testId: 'pipeline-run-full-btn' },
+      { id: 'report', title: '验收报告' },
+    ],
+  },
+] as {
+  label: string;
+  actions: {
+    id: string;
+    title: string;
+    primary?: boolean;
+    testId?: string;
+  }[];
+}[];
 
 function statusBadge(status: string) {
   const cls =
@@ -22,18 +85,39 @@ export default function ProjectDetail() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedPrd, setSelectedPrd] = useState<Prd | null>(null);
   const [reportContent, setReportContent] = useState('');
-  const [reportKind, setReportKind] = useState('');
   const [activeJob, setActiveJob] = useState<Job | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [skills, setSkills] = useState<SkillSummary[]>([]);
+  const [devSkillFrontend, setDevSkillFrontend] = useState('');
+  const [devSkillBackend, setDevSkillBackend] = useState('');
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const frontendSkills = useMemo(
+    () => skills.filter((s) => s.layer === 'frontend' || s.layer === 'fullstack'),
+    [skills],
+  );
+  const backendSkills = useMemo(
+    () => skills.filter((s) => s.layer === 'backend' || s.layer === 'fullstack'),
+    [skills],
+  );
+
+  const loadDevContext = useCallback(() => {
+    api.skills()
+      .then(setSkills)
+      .catch(() => setSkills([]));
+  }, []);
+
+  const stopPolling = useCallback(() => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  }, []);
 
   const load = useCallback(() => {
     if (!projectId) return;
-    Promise.all([
-      api.prds(projectId),
-      api.reports(projectId),
-      api.jobs(projectId),
-    ])
+    Promise.all([api.prds(projectId), api.reports(projectId), api.jobs(projectId)])
       .then(([p, r, j]) => {
         setPrds(p);
         setReports(r);
@@ -44,33 +128,45 @@ export default function ProjectDetail() {
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadDevContext(); }, [loadDevContext]);
 
-  const pollJob = (jobId: string) => {
-    const timer = setInterval(async () => {
+  useEffect(() => () => stopPolling(), [stopPolling]);
+
+  const pollJob = useCallback((jobId: string) => {
+    stopPolling();
+    pollTimerRef.current = setInterval(async () => {
       try {
         const job = await api.job(jobId);
         setActiveJob(job);
         if (job.status === 'SUCCESS' || job.status === 'FAILED') {
-          clearInterval(timer);
+          stopPolling();
           setBusy(false);
           load();
         }
       } catch {
-        clearInterval(timer);
+        stopPolling();
         setBusy(false);
       }
     }, 1500);
-  };
+  }, [load, stopPolling]);
 
   const runPipeline = async (action: string) => {
     if (!selectedPrd) return;
     setBusy(true);
     setError('');
+    setActiveJob(null);
     try {
       const body: Record<string, unknown> = {
         project_id: projectId,
         prd: selectedPrd.path,
       };
+      let pipelineAction = action;
+      if (action.startsWith('dev-')) {
+        pipelineAction = 'dev';
+        body.layer = action.replace('dev-', '');
+        if (devSkillFrontend) body.skill_frontend = devSkillFrontend;
+        if (devSkillBackend) body.skill_backend = devSkillBackend;
+      }
       if (action === 'generate') {
         body.prd_id = selectedPrd.prd_id;
         body.type = 'all';
@@ -79,7 +175,7 @@ export default function ProjectDetail() {
         body.layer = 'all';
         body.prd_id = selectedPrd.prd_id;
       }
-      const job = await api.pipeline(action, body);
+      const job = await api.pipeline(pipelineAction, body);
       setActiveJob(job);
       pollJob(job.id);
     } catch (e) {
@@ -92,84 +188,23 @@ export default function ProjectDetail() {
     try {
       const r = await api.traceability(projectId, prdId);
       setReportContent(r.content);
-      setReportKind(r.kind);
     } catch (e) {
       setError(String(e));
     }
   };
 
   return (
-    <div>
-      <p><Link to="/">← 返回仪表盘</Link></p>
-      <h2 style={{ marginTop: 0 }}>项目：{projectId}</h2>
-      <p>
-        <Link to={`/projects/${projectId}/config`}>编辑项目 YAML</Link>
-      </p>
-      {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
-
-      <div className="card" data-testid="pipeline-panel">
-        <h2>流水线</h2>
-        <p className="muted">
-          当前 PRD：{selectedPrd?.filename ?? '（请选择）'}
-          {selectedPrd?.version ? ` · v${selectedPrd.version}` : ''}
-        </p>
-        <div data-testid="pipeline-actions">
-          <button className="btn" disabled={busy || !selectedPrd} onClick={() => runPipeline('validate')}>
-            校验
-          </button>
-          <button className="btn" disabled={busy || !selectedPrd} onClick={() => runPipeline('parse')}>
-            解析
-          </button>
-          <button className="btn" disabled={busy || !selectedPrd} onClick={() => runPipeline('generate')}>
-            生成测试
-          </button>
-          <button
-            className="btn btn-primary"
-            disabled={busy || !selectedPrd}
-            data-testid="pipeline-generate-btn"
-            onClick={() => runPipeline('generate-pipeline')}
-          >
-            生成链路
-          </button>
-          <button
-            className="btn btn-primary"
-            disabled={busy || !selectedPrd}
-            data-testid="pipeline-test-btn"
-            onClick={() => runPipeline('test')}
-          >
-            执行测试
-          </button>
-          <button
-            className="btn btn-primary"
-            disabled={busy || !selectedPrd}
-            data-testid="pipeline-run-full-btn"
-            onClick={() => runPipeline('run-full')}
-          >
-            一键全流程
-          </button>
-          <button className="btn" disabled={busy} onClick={() => runPipeline('report')}>
-            生成报告
-          </button>
-        </div>
-        {activeJob && (
-          <div style={{ marginTop: '1rem' }} data-testid="pipeline-log">
-            <p>
-              任务 {activeJob.id.slice(0, 8)}… {statusBadge(activeJob.status)}
-            </p>
-            <div className="log-box">{activeJob.log_tail || '（等待日志…）'}</div>
-          </div>
-        )}
-      </div>
-
-      {selectedPrd && (
-        <HealPanel projectId={projectId} prdId={prdIdFromFilename(selectedPrd.filename)} />
-      )}
+    <div className="page">
+      <header className="page-header">
+        <h1 className="page-title">{projectId}</h1>
+      </header>
+      {error && <div className="alert alert--danger">{error}</div>}
 
       <div className="card" data-testid="prd-list">
-        <h2>PRD 列表</h2>
-        <p>
+        <div className="card-head">
+          <h2 className="card-title">PRD</h2>
           <label className="btn">
-            上传 PRD (.md)
+            上传
             <input
               type="file"
               accept=".md"
@@ -191,69 +226,140 @@ export default function ProjectDetail() {
               }}
             />
           </label>
-        </p>
-        <table>
-          <thead>
-            <tr><th>文件</th><th>版本</th><th>操作</th></tr>
-          </thead>
-          <tbody>
-            {prds.map((p) => (
-              <tr key={p.filename}>
-                <td>
-                  <button
-                    className="btn"
-                    style={{ margin: 0 }}
-                    onClick={() => setSelectedPrd(p)}
-                  >
-                    {p.filename}
-                  </button>
-                </td>
-                <td className="muted">{p.version || '—'}</td>
-                <td>
-                  <Link to={`/projects/${projectId}/prds/${p.filename}`}>预览 / 编辑</Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="card" data-testid="report-traceability">
-        <h2>追溯报告</h2>
-        <ul style={{ paddingLeft: '1.25rem' }}>
-          {reports.map((r) => (
-            <li key={r.prd_id}>
-              <button className="btn" onClick={() => viewReport(r.prd_id)}>
-                {r.prd_id} ({r.kind})
-              </button>
-              <span className="muted"> · {r.updated_at}</span>
-            </li>
+        </div>
+        <div className="prd-picker">
+          {prds.map((p) => (
+            <button
+              key={p.filename}
+              type="button"
+              className={`prd-chip${selectedPrd?.filename === p.filename ? ' prd-chip--active' : ''}`}
+              onClick={() => setSelectedPrd(p)}
+            >
+              <strong>{p.prd_id || p.filename}</strong>
+              <span>{p.filename}</span>
+            </button>
           ))}
-        </ul>
-        {reportContent && (
-          <>
-            <p className="muted">类型：{reportKind}</p>
-            <pre className="pre-wrap" style={{ marginTop: '0.5rem' }}>{reportContent}</pre>
-          </>
+        </div>
+        {selectedPrd && (
+          <p className="muted prd-links">
+            <Link to={`/projects/${projectId}/prds/${selectedPrd.filename}`}>预览</Link>
+            {' · '}
+            <Link to={`/projects/${projectId}/prds/${selectedPrd.filename}?edit=1`}>编辑</Link>
+          </p>
         )}
       </div>
 
-      <div className="card">
-        <h2>任务历史</h2>
-        <table>
-          <thead>
-            <tr><th>命令</th><th>状态</th><th>时间</th></tr>
-          </thead>
-          <tbody>
-            {jobs.map((j) => (
-              <tr key={j.id}>
-                <td>{j.command}</td>
-                <td>{statusBadge(j.status)}</td>
-                <td className="muted">{j.created_at}</td>
-              </tr>
+      <div className="card" data-testid="pipeline-panel">
+        <h2 className="card-title">流水线</h2>
+        <div data-testid="pipeline-actions" className="action-groups">
+          {PIPELINE_GROUPS.map((group) => (
+            <div key={group.label} className="action-group">
+              <div className="action-group-head">
+                <strong>{group.label}</strong>
+              </div>
+              {group.label === '业务代码' && (
+                <div className="dev-skill-row">
+                  <label className="dev-skill-field">
+                    <span>前端 Skill</span>
+                    <Select
+                      value={devSkillFrontend}
+                      onChange={setDevSkillFrontend}
+                      disabled={busy}
+                      placeholder="（不指定）"
+                      options={[
+                        { value: '', label: '（不指定）' },
+                        ...frontendSkills.map((s) => ({ value: s.id, label: s.name })),
+                      ]}
+                    />
+                  </label>
+                  <label className="dev-skill-field">
+                    <span>后端 Skill</span>
+                    <Select
+                      value={devSkillBackend}
+                      onChange={setDevSkillBackend}
+                      disabled={busy}
+                      placeholder="（不指定）"
+                      options={[
+                        { value: '', label: '（不指定）' },
+                        ...backendSkills.map((s) => ({ value: s.id, label: s.name })),
+                      ]}
+                    />
+                  </label>
+                  <Link to="/skills" className="dev-skill-link muted">管理 Skill</Link>
+                </div>
+              )}
+              <div className="action-grid">
+                {group.actions.map((action) => (
+                  <ActionButton
+                    key={action.id}
+                    title={action.title}
+                    className={action.primary ? 'action-card--primary' : ''}
+                    disabled={busy || !selectedPrd}
+                    data-testid={action.testId}
+                    onClick={() => runPipeline(action.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        {activeJob && (
+          <div className="job-log-panel" data-testid="pipeline-log">
+            <div className="job-log-head">
+              <strong>{jobLabel(activeJob)}</strong>
+              {statusBadge(activeJob.status)}
+            </div>
+            <div className="log-box">{activeJob.log_tail || '…'}</div>
+          </div>
+        )}
+      </div>
+
+      {selectedPrd && (
+        <ArtifactsPanel projectId={projectId} prdId={selectedPrd.prd_id} />
+      )}
+
+      {selectedPrd && (
+        <HealPanel projectId={projectId} prdId={selectedPrd.prd_id} />
+      )}
+
+      <div className="card" data-testid="report-traceability">
+        <h2 className="card-title">追溯报告</h2>
+        {reports.length === 0 ? (
+          <p className="empty">暂无</p>
+        ) : (
+          <ul className="report-list">
+            {reports.map((r) => (
+              <li key={r.prd_id}>
+                <button type="button" className="btn" onClick={() => viewReport(r.prd_id)}>
+                  {r.prd_id}
+                </button>
+              </li>
             ))}
-          </tbody>
-        </table>
+          </ul>
+        )}
+        {reportContent && <pre className="pre-wrap">{reportContent}</pre>}
+      </div>
+
+      <div className="card">
+        <h2 className="card-title">执行记录</h2>
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr><th>操作</th><th>状态</th><th>时间</th></tr>
+            </thead>
+            <tbody>
+              {jobs.length === 0 ? (
+                <tr><td colSpan={3} className="muted">暂无</td></tr>
+              ) : jobs.map((j) => (
+                <tr key={j.id}>
+                  <td>{jobLabel(j)}</td>
+                  <td>{statusBadge(j.status)}</td>
+                  <td className="muted">{j.created_at}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

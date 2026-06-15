@@ -1,6 +1,6 @@
 # auto-dev-test
 
-**规格仓库（spec-only）** · 文档版本 **4.4.1**
+**规格仓库（spec-only）** · 文档版本 **4.4.2**
 
 | 文档 | 职责 |
 |------|------|
@@ -23,8 +23,9 @@ pip3 install -r requirements.txt
 npm install
 npx playwright install chromium   # 首次 E2E 需要
 
-# 无 API Key 时默认规则 parse；需 LLM 时：
-# export USE_LLM_PARSE=1 ANTHROPIC_API_KEY=...
+# 无 API Key 时默认规则 parse；需 LLM 时可在管理台「API 设置」配置，或：
+# export USE_LLM_PARSE=1
+# export ANTHROPIC_API_KEY=...   # 全局回退；推荐按 profile 使用 LLM_KEY_SONNET 等
 
 python3 run.py run-full --project project-a --prd prds/project-a/PROJ-001_login.md
 ```
@@ -55,13 +56,18 @@ python3 run.py generate --project project-a --prd-id PROJ-001 --force
 pip3 install -r requirements.txt
 python3 -m uvicorn api.main:app --reload --port 8000
 
-# 终端 2：前端
+# 终端 2：前端（须先启动，否则 5173 无法访问）
 cd admin && npm install && npm run dev
-# → http://127.0.0.1:5173
+# → http://127.0.0.1:5173  （Vite 已绑定 IPv4）
 ```
 
-- 仪表盘：项目列表 + 最近任务
-- 项目详情：PRD 只读预览、流水线按钮（含 **一键全流程**）、追溯报告、日志轮询
+- 仪表盘：项目列表 + 最近任务；侧栏显示 **API 在线/离线**
+- **API 设置**（`/settings`）：添加多条 LLM API（名称、接口类型、Key、地址、模型）；每条 profile **独立** Key（`.env` 中 `LLM_KEY_<名称>`）与 `base_url`（`global.yaml`）；支持 Anthropic 官方、DashScope 代理、OpenAI 兼容等
+- **Skill 库**（`/skills`）：左列表 + 右编辑器；上传/拖放 `.md`、新建空白；默认 **预览**，可切 **源码**
+- **项目**：侧栏选项目后 → **工作台** / **环境** / **AI 模型**；支持 **新建项目**（`POST /api/projects`）
+- **工作台**：PRD 列表、流水线（校验→生成→运行）、**业务代码**（前端/后端 Skill 下拉 + 分层生成）、追溯报告、产物浏览、Heal 面板
+- **环境**（`/projects/:id/config`）：被测地址、repos、Vitest、webServer
+- **AI 模型**（`?tab=ai`）：PRD 解析 / 失败分析 / 前端代码 / 后端代码 四项任务绑定 profile（可「使用全局默认」）
 - API：`POST /api/pipeline/*` 返回 **202** 异步入队；`GET /api/pipeline/jobs/{id}` 轮询 `log_tail`
 
 ## M4 组件测试并行
@@ -83,11 +89,19 @@ python3 -m unittest tests.test_m4_vitest -v
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | PUT | `/api/projects/{id}` | 保存项目 YAML |
+| GET/PUT | `/api/projects/{id}/settings` | 项目环境 / AI 任务路由表单 |
+| POST | `/api/projects` | 新建项目 |
 | GET | `/api/projects/{id}/yaml` | 读取 YAML 原文 |
 | PUT | `/api/projects/{id}/prds/{file}` | 保存 PRD |
 | POST | `/api/projects/{id}/prds/upload` | 上传 `.md`（≤1MB） |
+| GET/PUT | `/api/settings/ai` | 读取/保存多模型 profile（含每 profile `base_url`、独立 Key） |
+| GET | `/api/settings/ai-resolved` | 解析后实际模型（可选 `?project_id=`） |
+| PUT | `/api/settings/credentials` | 保存 `USE_LLM_PARSE` 等全局开关 |
+| GET/PUT/DELETE | `/api/skills/{id}` | Skill 库读写 |
+| POST | `/api/skills/import` | 上传 `.md` |
+| GET | `/api/projects/{id}/artifacts/{prd_id}/*` | intermediate / 生成物 / 变更列表 |
 
-管理台：项目详情 → **编辑项目 YAML** / PRD **预览·编辑** / **上传 PRD**。
+管理台：侧栏 **API 设置**、**Skill 库**；项目 **工作台** PRD 预览/编辑/上传；**环境** / **AI 模型** 分 tab 保存。
 
 **CI 模板**（复制到流水线）：
 
@@ -105,13 +119,17 @@ python3 -m unittest tests.test_m5_write_security -v
 ```bash
 # 业务开发（需 OpenHands CLI；未安装时打印 repos 指引）
 python3 run.py dev --project project-a --prd prds/project-a/PROJ-001_login.md
+python3 run.py dev --project project-a --prd prds/project-a/PROJ-001_login.md --layer frontend
+python3 run.py dev --project project-a --prd prds/project-a/PROJ-001_login.md --layer backend --skill-frontend clean-ui --skill-backend go-api
 
 # 自愈循环（默认 dry-run；--apply 才真正重写 generated spec）
 python3 run.py heal-loop --project project-a --prd-id PROJ-001
 python3 run.py heal-loop --project project-a --prd-id PROJ-001 --apply
 ```
 
+- `dev`：`--layer frontend|backend|all`；Skill 默认读 `config/projects/*.yaml` 的 `dev.frontend_skill` / `dev.backend_skill`，可用 `--skill-*` 或工作台下拉覆盖
 - 流程：test → report → flaky 重跑 → preflight → analyze → fix → retest
+- 管理台采纳补丁：复制 `heal/fix-runs/{id}/tests/generated/` 预览文件到正式目录（非盲目重新 generate）
 - 审计：`heal_runs` 表（`tests/generated/jobs.db`）
 - 管理台：**分析失败** / **heal-loop** / diff 预览 / 采纳·放弃
 
@@ -127,6 +145,9 @@ python3 -m unittest tests.test_m6_heal -v
 # 一键验收
 bash scripts/verify.sh
 
+# 仅单元测试
+bash scripts/run-unit-tests.sh
+
 # 或分步：
 python3 -m unittest \
   tests.test_acceptance \
@@ -135,6 +156,15 @@ python3 -m unittest \
   tests.test_m4_vitest \
   tests.test_m5_write_security \
   tests.test_m6_heal \
+  tests.test_env_store \
+  tests.test_ai_resolver \
+  tests.test_skills_api \
+  tests.test_dev_layer \
+  tests.test_heal_fix \
+  tests.test_list_prds \
+  tests.test_project_settings \
+  tests.test_create_project \
+  tests.test_artifacts_api \
   tests.test_component_path_resolver \
   tests.test_validator_optional -v
 ```

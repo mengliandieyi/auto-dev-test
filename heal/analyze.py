@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-import re
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -19,7 +19,11 @@ def analyze_failure(
     report_text: str,
 ) -> Tuple[Dict[str, Any], float]:
     """返回 (diagnosis, token_cost)。"""
-    if os.getenv("ANTHROPIC_API_KEY"):
+    from env_store import ensure_env_loaded
+    from llm_client import any_llm_configured
+
+    ensure_env_loaded()
+    if any_llm_configured():
         return _analyze_llm(project_id, prd_id, failures, report_text, config)
     return _analyze_rules(failures, report_text), 0.0
 
@@ -54,12 +58,12 @@ def _analyze_llm(
     report_text: str,
     config: dict,
 ) -> Tuple[Dict[str, Any], float]:
-    import anthropic
-    import yaml
+    sys.path.insert(0, str(ROOT))
+    from ai_resolver import resolve_ai_for_task
+    from llm_client import llm_complete
 
-    global_path = ROOT / "config" / "global.yaml"
-    global_cfg = yaml.safe_load(global_path.read_text(encoding="utf-8")) if global_path.exists() else {}
-    model = global_cfg.get("ai", {}).get("model", "claude-sonnet-4-5")
+    ai_cfg = resolve_ai_for_task(config, "heal")
+    model = ai_cfg["model"]
     prompt = f"""分析测试失败并返回 JSON（仅 JSON）：
 project={project_id}, prd_id={prd_id}
 failures={json.dumps(failures, ensure_ascii=False)}
@@ -68,17 +72,9 @@ report excerpt:
 
 字段：category (test_script|business_code|prd_drift|config_env), summary, fix_target, prd_drift (bool)
 """
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-    msg = client.messages.create(
-        model=model,
-        max_tokens=1024,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    raw = msg.content[0].text
+    raw, tokens = llm_complete(ai_cfg, prompt, max_tokens=min(ai_cfg["max_tokens"], 4096))
     start, end = raw.find("{"), raw.rfind("}")
     data = json.loads(raw[start : end + 1]) if start >= 0 else _analyze_rules(failures, report_text)
-    usage = getattr(msg, "usage", None)
-    tokens = float((usage.input_tokens if usage else 0) + (usage.output_tokens if usage else 0))
     return data, tokens
 
 

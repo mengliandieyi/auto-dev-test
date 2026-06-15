@@ -48,6 +48,7 @@ test:
   image: mcr.microsoft.com/playwright:v1.45.0-jammy
   <<: *python_node
   script:
+    - bash scripts/run-unit-tests.sh
     - python3 run.py test --project $PROJECT_ID --layer all
   artifacts:
     when: always

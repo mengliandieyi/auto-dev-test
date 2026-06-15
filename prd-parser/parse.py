@@ -68,29 +68,20 @@ def parse(project_id: str, prd_path: Union[str, Path]) -> Path:
 
 
 def _parse_llm(prd_path: Path, project_id: str, project_config: dict) -> dict:
-    import anthropic
-    import yaml
+    sys.path.insert(0, str(ROOT))
+    from ai_resolver import resolve_ai_for_task
+    from llm_client import llm_complete
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise EnvironmentError("USE_LLM_PARSE=1 但未设置 ANTHROPIC_API_KEY")
-
-    global_path = ROOT / "config" / "global.yaml"
-    global_cfg = yaml.safe_load(global_path.read_text(encoding="utf-8")) if global_path.exists() else {}
-    model = global_cfg.get("ai", {}).get("model", "claude-sonnet-4-5")
+    ai_cfg = resolve_ai_for_task(project_config, "parse")
+    model = ai_cfg["model"]
     prompt_path = Path(__file__).parent / "prompts" / "parse_prd.txt"
     if not prompt_path.exists():
         raise FileNotFoundError(f"缺少 prompt：{prompt_path}")
     prd_content = prd_path.read_text(encoding="utf-8")
     prompt = prompt_path.read_text(encoding="utf-8").replace("{prd_content}", prd_content)
 
-    client = anthropic.Anthropic(api_key=api_key)
-    message = client.messages.create(
-        model=model,
-        max_tokens=global_cfg.get("ai", {}).get("max_tokens", 8096),
-        messages=[{"role": "user", "content": prompt}],
-    )
-    raw = message.content[0].text
+    print(f"[parse] LLM：{ai_cfg.get('provider', 'anthropic')} / {ai_cfg.get('profile', model)} → {model}")
+    raw, _ = llm_complete(ai_cfg, prompt)
     start, end = raw.find("{"), raw.rfind("}")
     if start == -1:
         raise ValueError("LLM 返回无 JSON")

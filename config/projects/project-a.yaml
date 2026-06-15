@@ -45,3 +45,7 @@ typeui:
 repos:
   frontend: ../acme-web
   backend: ../acme-api
+
+dev:
+  frontend_skill: clean-ui
+  backend_skill: go-api

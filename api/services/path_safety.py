@@ -32,6 +32,17 @@ def _check_write_size(content: str | bytes) -> None:
         raise HTTPException(status_code=400, detail="Content exceeds 1MB limit")
 
 
+def resolve_global_config_path() -> Path:
+    """固定路径 config/global.yaml，禁止穿越与 symlink。"""
+    config_dir = (REPO_ROOT / "config").resolve()
+    path = (config_dir / "global.yaml").resolve()
+    if not _is_under(path, config_dir):
+        raise HTTPException(status_code=500, detail="Invalid global config path")
+    if path.is_symlink():
+        raise HTTPException(status_code=400, detail="Symlink not allowed")
+    return path
+
+
 def resolve_project_config_path(project_id: str) -> Path:
     validate_project_id(project_id)
     config_dir = (REPO_ROOT / "config" / "projects").resolve()
@@ -67,6 +78,15 @@ def validate_project_id(project_id: str) -> str:
     config = REPO_ROOT / "config" / "projects" / f"{project_id}.yaml"
     if not config.exists():
         raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
+    return project_id
+
+
+def validate_new_project_id(project_id: str) -> str:
+    if not PROJECT_ID_RE.match(project_id):
+        raise HTTPException(status_code=400, detail="Invalid project_id")
+    config = REPO_ROOT / "config" / "projects" / f"{project_id}.yaml"
+    if config.exists():
+        raise HTTPException(status_code=409, detail=f"Project already exists: {project_id}")
     return project_id
 
 
