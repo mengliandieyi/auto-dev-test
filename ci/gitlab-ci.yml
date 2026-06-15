@@ -1,0 +1,62 @@
+# GitLab CI — auto-dev-test M5 模板
+
+stages:
+  - generate
+  - test
+
+variables:
+  PROJECT_ID: project-a
+  PRD_PATH: prds/project-a/PROJ-001_login.md
+  CI: "true"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+    - node_modules/
+  # 不 cache meta.db / jobs.db（位于 tests/generated/）
+
+.python_node: &python_node
+  before_script:
+    - pip install -r requirements.txt
+    - npm ci
+    - npx playwright install --with-deps chromium
+
+generate-pipeline:
+  stage: generate
+  image: mcr.microsoft.com/playwright:v1.45.0-jammy
+  <<: *python_node
+  script:
+    - python3 run.py generate-pipeline --project $PROJECT_ID --prd $PRD_PATH
+    - |
+      git config user.email "ci@auto-dev-test"
+      git config user.name "auto-dev-test bot"
+      git add tests/generated/ tests/intermediate/ || true
+      git diff --staged --quiet || git commit -m "chore: regenerate tests [skip ci]"
+  rules:
+    - changes:
+        - prds/**/*
+        - tests/intermediate/**/*
+  artifacts:
+    paths:
+      - tests/generated/
+      - tests/intermediate/
+    expire_in: 7 days
+
+test:
+  stage: test
+  image: mcr.microsoft.com/playwright:v1.45.0-jammy
+  <<: *python_node
+  script:
+    - python3 run.py test --project $PROJECT_ID --layer all
+  artifacts:
+    when: always
+    paths:
+      - reports/
+    expire_in: 30 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - changes:
+        - tests/generated/**/*
+        - tests/fixtures/**/*
+        - config/projects/**/*

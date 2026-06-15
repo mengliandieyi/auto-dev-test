@@ -1,0 +1,31 @@
+{
+  "name": "auto-dev-test",
+  "version": "2.0.0",
+  "description": "PRD 驱动的自动化测试平台（Web 管理后台 + E2E + 组件）",
+  "scripts": {
+    "dev:api": "python3 -m uvicorn api.main:app --reload --port 8000",
+    "dev:admin": "npm run dev --prefix admin",
+    "test": "playwright test",
+    "test:e2e": "playwright test",
+    "test:e2e:project-a": "playwright test --project project-a",
+    "test:component": "vitest run tests/generated",
+    "test:component:watch": "vitest tests/generated",
+    "test:all": "npm run test:component && npm run test:e2e",
+    "test:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.45.0",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/jest-dom": "^6.0.0",
+    "@testing-library/user-event": "^14.0.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "jsdom": "^24.0.0",
+    "msw": "^2.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "vitest": "^2.0.0"
+  }
+}

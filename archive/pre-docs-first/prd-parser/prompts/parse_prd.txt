@@ -1,0 +1,50 @@
+你是一个专业的测试分析师。请将下面的 PRD 文档解析为结构化的测试用例 JSON。
+
+## 解析规则
+
+1. 每条「验收标准」对应至少一个 E2E 用例（id：ETC-001、ETC-002…）
+2. 「页面交互」步骤 → e2e_test_cases[].steps（testid 来自 data-testid）
+3. 「组件测试」章节 → component_test_cases[]（id：CTC-001…）；无该章节则 component_test_cases 为 []
+   - component：必填（组件名，如 LoginForm）
+   - component_path：**选填**；省略时由引擎在业务仓按组件名检索
+4. assertions 从验收标准提取（url / text_visible / visible 等）
+5. **禁止**输出 `test_cases` 字段；E2E 用例只写在 `e2e_test_cases`
+
+## 输出格式（严格 JSON，无 markdown 包裹）
+
+{
+  "feature_name": "功能名",
+  "feature": "feature_slug",
+  "test_data": { "valid": {}, "invalid": {} },
+  "e2e_test_cases": [
+    {
+      "id": "ETC-001",
+      "source_criterion": "验收标准原文",
+      "title": "用例标题",
+      "steps": [
+        {"action": "navigate", "target": "/login"},
+        {"action": "fill", "testid": "username-input", "value": "{{valid.username}}"},
+        {"action": "click", "testid": "login-btn"}
+      ],
+      "assertions": [
+        {"type": "url", "expected": "/dashboard"}
+      ]
+    }
+  ],
+  "component_test_cases": [
+    {
+      "id": "CTC-001",
+      "source_criterion": "验收标准原文",
+      "title": "组件用例标题",
+      "component": "LoginForm",
+      "component_path": "src/components/LoginForm.tsx",
+      "actions": [{"type": "click", "testid": "login-btn"}],
+      "assertions": [{"type": "text_visible", "testid": "error-message", "text": "错误提示"}],
+      "mocks": [{"method": "POST", "path": "/api/auth/login", "status": 401, "body": {}}]
+    }
+  ]
+}
+
+## PRD 内容
+
+{prd_content}

@@ -1,0 +1,171 @@
+"""异步任务 Worker：限并发执行 run.py"""
+
+from __future__ import annotations
+
+import asyncio
+import signal
+from typing import Any, Dict, List, Optional
+
+from api.config import MAX_CONCURRENT_JOBS, REPO_ROOT
+from api.services import job_store
+
+_semaphore: Optional[asyncio.Semaphore] = None
+_worker_task: Optional[asyncio.Task] = None
+_running_procs: Dict[str, asyncio.subprocess.Process] = {}
+_shutting_down = False
+
+
+def _get_semaphore() -> asyncio.Semaphore:
+    global _semaphore
+    if _semaphore is None:
+        _semaphore = asyncio.Semaphore(MAX_CONCURRENT_JOBS)
+    return _semaphore
+
+
+def build_argv(command: str, project_id: str, args: Dict[str, Any]) -> List[str]:
+    base = ["python3", str(REPO_ROOT / "run.py"), command, "--project", project_id]
+    if command in ("validate", "parse", "generate-pipeline"):
+        prd = args.get("prd_path") or args.get("prd")
+        if not prd:
+            raise ValueError("prd_path is required")
+        base.extend(["--prd", prd])
+    if command == "generate":
+        base.extend(["--prd-id", args["prd_id"]])
+        gen_type = args.get("type", "all")
+        base.extend(["--type", gen_type])
+    if command in ("report", "test"):
+        layer = args.get("layer", "all")
+        base.extend(["--layer", layer])
+    return base
+
+
+async def enqueue_job(
+    command: str, project_id: str, args: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    job_store.init_jobs_db()
+    job = job_store.create_job(project_id, command, args or {})
+    _ensure_worker()
+    return job
+
+
+def _ensure_worker() -> None:
+    global _worker_task
+    if _shutting_down:
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    if _worker_task is None or _worker_task.done():
+        _worker_task = loop.create_task(_worker_loop())
+
+
+async def _worker_loop() -> None:
+    while not _shutting_down:
+        job = job_store.pick_next_pending()
+        if not job:
+            await asyncio.sleep(0.5)
+            continue
+        asyncio.create_task(_run_job(job))
+
+
+async def _run_job(job: Dict[str, Any]) -> None:
+    sem = _get_semaphore()
+    async with sem:
+        job_id = job["id"]
+        job_store.update_job_status(job_id, "RUNNING", started_at=job_store._now())
+        log_path = job.get("log_path")
+        proc: Optional[asyncio.subprocess.Process] = None
+        try:
+            argv = build_argv(job["command"], job["project_id"], job.get("args") or {})
+            if not log_path:
+                raise ValueError("log_path missing")
+            with open(log_path, "wb") as log_file:
+                proc = await asyncio.create_subprocess_exec(
+                    *argv,
+                    stdout=log_file,
+                    stderr=asyncio.subprocess.STDOUT,
+                    cwd=str(REPO_ROOT),
+                    start_new_session=True,
+                )
+                _running_procs[job_id] = proc
+                exit_code = await proc.wait()
+            status = "SUCCESS" if exit_code == 0 else "FAILED"
+            job_store.update_job_status(
+                job_id,
+                status,
+                finished_at=job_store._now(),
+                exit_code=exit_code,
+            )
+        except asyncio.CancelledError:
+            if proc and proc.returncode is None:
+                await _terminate_proc(proc)
+            job_store.update_job_status(
+                job_id,
+                "FAILED",
+                finished_at=job_store._now(),
+                exit_code=-1,
+            )
+            if log_path:
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write("\n[worker] 任务因服务关闭被终止\n")
+            raise
+        except Exception as exc:
+            if proc and proc.returncode is None:
+                await _terminate_proc(proc)
+            if log_path:
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(f"\n[worker error] {exc}\n")
+            job_store.update_job_status(
+                job_id,
+                "FAILED",
+                finished_at=job_store._now(),
+                exit_code=1,
+            )
+        finally:
+            _running_procs.pop(job_id, None)
+
+
+async def _terminate_proc(proc: asyncio.subprocess.Process) -> None:
+    if proc.returncode is not None:
+        return
+    try:
+        proc.send_signal(signal.SIGTERM)
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=5.0)
+            return
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+    except ProcessLookupError:
+        pass
+
+
+async def shutdown_workers() -> None:
+    """FastAPI shutdown：终止 RUNNING 子进程，避免 Playwright/Vitest 孤儿化。"""
+    global _shutting_down, _worker_task
+    _shutting_down = True
+    if _worker_task and not _worker_task.done():
+        _worker_task.cancel()
+        try:
+            await _worker_task
+        except asyncio.CancelledError:
+            pass
+    procs = list(_running_procs.items())
+    for job_id, proc in procs:
+        await _terminate_proc(proc)
+        job_store.update_job_status(
+            job_id,
+            "FAILED",
+            finished_at=job_store._now(),
+            exit_code=-1,
+        )
+        _running_procs.pop(job_id, None)
+    job_store.recover_stale_running_jobs()
+
+
+def start_worker_on_startup() -> None:
+    global _shutting_down
+    _shutting_down = False
+    job_store.recover_stale_running_jobs()
+    _ensure_worker()

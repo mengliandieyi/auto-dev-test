@@ -1,0 +1,118 @@
+// Jenkinsfile — PRD 驱动的 E2E 自动化测试流水线
+// Phase 2 模板
+//
+// 前提：
+//   1. Jenkins 配置 credentials：ANTHROPIC_API_KEY、PROJECT_A_CREDENTIALS
+//   2. 安装插件：Pipeline、Git
+//   3. 在 Jenkins → 系统配置中设置 Python3 / Node 路径（或用 Docker agent）
+
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'PROJECT_ID', defaultValue: 'project-a', description: '项目 ID')
+        string(name: 'PRD_PATH', defaultValue: '', description: 'PRD 文件路径（空则自动检测变更）')
+    }
+
+    environment {
+        ANTHROPIC_API_KEY = credentials('ANTHROPIC_API_KEY')
+        PROJECT_A_BASE_URL = credentials('PROJECT_A_BASE_URL')
+        PROJECT_A_CREDENTIALS_USER = credentials('PROJECT_A_CREDENTIALS_USER')
+        PROJECT_A_CREDENTIALS_PASS = credentials('PROJECT_A_CREDENTIALS_PASS')
+    }
+
+    stages {
+        stage('Setup') {
+            steps {
+                sh 'pip install -r requirements.txt'
+                sh 'npm ci'
+                sh 'npx playwright install --with-deps chromium'
+            }
+        }
+
+        stage('Validate PRD') {
+            steps {
+                sh """
+                    python run.py validate \\
+                        --project ${params.PROJECT_ID} \\
+                        --prd ${params.PRD_PATH}
+                """
+            }
+        }
+
+        stage('Parse PRD') {
+            steps {
+                sh """
+                    python run.py parse \\
+                        --project ${params.PROJECT_ID} \\
+                        --prd ${params.PRD_PATH}
+                """
+            }
+        }
+
+        stage('Generate Tests') {
+            steps {
+                script {
+                    def prdId = sh(
+                        script: """python -c "
+import json, glob, sys
+files = sorted(glob.glob('tests/intermediate/${params.PROJECT_ID}/*_test-cases.json'))
+if not files: sys.exit(1)
+print(json.load(open(files[-1]))['prd_id'])
+" """,
+                        returnStdout: true
+                    ).trim()
+
+                    sh """
+                        python run.py generate \\
+                            --project ${params.PROJECT_ID} \\
+                            --prd-id ${prdId}
+                    """
+                }
+            }
+        }
+
+        stage('Commit Generated Files') {
+            steps {
+                sh """
+                    git config user.email "ci@auto-dev-test"
+                    git config user.name "auto-dev-test bot"
+                    git add tests/generated/ tests/intermediate/
+                    git diff --staged --quiet || \\
+                        git commit -m "chore: regenerate tests [skip ci]"
+                    git push origin HEAD
+                """
+            }
+        }
+
+        stage('Run E2E Tests') {
+            steps {
+                sh "npx playwright test --project ${params.PROJECT_ID}"
+            }
+            post {
+                always {
+                    publishHTML([
+                        allowMissing: true,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'reports/playwright-report',
+                        reportFiles: 'index.html',
+                        reportName: 'Playwright Report'
+                    ])
+                }
+            }
+        }
+
+        stage('Generate Traceability Report') {
+            steps {
+                sh "python run.py report --project ${params.PROJECT_ID}"
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
+        }
+    }
+}

@@ -1,0 +1,38 @@
+你是一个 Vitest + React Testing Library 测试工程师。
+根据以下组件测试用例 JSON，生成完整的 Vitest .test.tsx 文件。
+
+## 要求
+
+1. 使用 TypeScript，引入 @testing-library/react 和 @testing-library/jest-dom
+2. 元素定位统一使用 screen.getByTestId()，与 React data-testid 约定一致
+3. 每个 component_test_case 对应一个 it() 块，用 describe 按组件分组
+4. MSW 动态 Mock（硬性要求）：
+   - 文件顶部：import { http, HttpResponse } from 'msw'
+   - 文件顶部：import { server } from '@testing/msw/server'
+   - **禁止**在 tests/msw/server.ts 写业务 handler
+   - 每个 mocks 非空的 it() 块**开头**必须 server.use(...) 注入当次用例的 handler
+   - mocks[] 每条展开为 http.{method}(path, () => HttpResponse.json(body, { status }))
+   - 示例：
+     server.use(
+       http.post('/api/auth/login', () =>
+         HttpResponse.json({ message: '账号或密码错误' }, { status: 401 })
+       )
+     );
+5. 文件头必须包含以下注释（原样输出）：
+/**
+ * AUTO-GENERATED — DO NOT EDIT MANUALLY
+ * PRD: {prd_id} v{prd_version} ({project_id})
+ * Layer: component
+ * Generated: {generated_at}
+ * Criteria Coverage: {criteria_count}/{criteria_count}
+ */
+6. 组件通过 component_path 引入（如：import LoginForm from '@/components/LoginForm'）
+7. 断言使用 expect() + jest-dom 扩展断言（toBeInTheDocument, toBeVisible 等）
+8. 测试数据从 JSON 的 test_data 字段读取，不硬编码密码
+9. 只输出纯 TypeScript 代码，不要任何 markdown 代码块包裹
+
+## 测试用例数据
+
+{component_test_cases_json}
+
+请直接输出完整的 .test.tsx 文件内容：

@@ -1,0 +1,124 @@
+# GitHub Actions — PRD 驱动的 E2E 自动化测试流水线
+# Phase 2 模板：当前可手动触发或在 PRD 文件变更时触发
+#
+# 使用前提：
+#   1. 在 repo Settings → Secrets 中配置 ANTHROPIC_API_KEY 和各项目鉴权变量
+#   2. 将 PROJECT_ID 替换为实际项目名（对应 config/projects/<id>.yaml）
+
+name: PRD to E2E Test
+
+on:
+  push:
+    paths:
+      - 'prds/**/*.md'
+  workflow_dispatch:
+    inputs:
+      project:
+        description: '项目 ID（对应 config/projects/<id>.yaml）'
+        required: true
+        default: 'project-a'
+      prd_path:
+        description: 'PRD 文件路径（如 prds/project-a/PROJ-001_login.md）'
+        required: true
+
+env:
+  PROJECT_ID: ${{ github.event.inputs.project || 'project-a' }}
+
+jobs:
+  prd-to-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python deps
+        run: pip install -r requirements.txt
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Playwright
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Detect changed PRD
+        id: changed_prd
+        run: |
+          if [ -n "${{ github.event.inputs.prd_path }}" ]; then
+            echo "prd=${{ github.event.inputs.prd_path }}" >> $GITHUB_OUTPUT
+          else
+            CHANGED=$(git diff --name-only HEAD~1 HEAD -- 'prds/**/*.md' | head -1)
+            echo "prd=$CHANGED" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Step 1 — 校验 PRD
+        run: |
+          python run.py validate \
+            --project ${{ env.PROJECT_ID }} \
+            --prd ${{ steps.changed_prd.outputs.prd }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Step 2 — 解析 PRD
+        run: |
+          python run.py parse \
+            --project ${{ env.PROJECT_ID }} \
+            --prd ${{ steps.changed_prd.outputs.prd }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Step 3 — 生成测试脚本
+        run: |
+          PRD_ID=$(python -c "
+          import json, glob, sys
+          files = sorted(glob.glob('tests/intermediate/${{ env.PROJECT_ID }}/*_test-cases.json'))
+          if not files: sys.exit(1)
+          print(json.load(open(files[-1]))['prd_id'])
+          ")
+          python run.py generate \
+            --project ${{ env.PROJECT_ID }} \
+            --prd-id $PRD_ID
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Commit generated files
+        run: |
+          git config user.email "ci@auto-dev-test"
+          git config user.name "auto-dev-test bot"
+          git add tests/generated/ tests/intermediate/
+          git diff --staged --quiet || \
+            git commit -m "chore: regenerate tests [skip ci]"
+          git push
+
+      - name: Step 4 — 执行 E2E 测试
+        run: npx playwright test --project ${{ env.PROJECT_ID }}
+        env:
+          PROJECT_A_BASE_URL: ${{ secrets.PROJECT_A_BASE_URL }}
+          PROJECT_A_CREDENTIALS_USER: ${{ secrets.PROJECT_A_CREDENTIALS_USER }}
+          PROJECT_A_CREDENTIALS_PASS: ${{ secrets.PROJECT_A_CREDENTIALS_PASS }}
+
+      - name: Step 5 — 生成追溯报告
+        if: always()
+        run: python run.py report --project ${{ env.PROJECT_ID }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ env.PROJECT_ID }}
+          path: reports/
+          retention-days: 30

@@ -1,0 +1,120 @@
+# GitHub Actions — auto-dev-test M5 CI 模板
+# PRD / intermediate 变更 → generate-pipeline；日常 PR → test
+# 不 cache meta.db / jobs.db
+
+name: auto-dev-test
+
+on:
+  pull_request:
+    paths:
+      - 'prds/**'
+      - 'tests/intermediate/**'
+      - 'tests/generated/**'
+      - 'tests/fixtures/**'
+      - 'config/projects/**'
+      - 'run.py'
+      - 'requirements.txt'
+      - 'package.json'
+      - 'vitest.config.ts'
+  workflow_dispatch:
+    inputs:
+      project:
+        description: 项目 ID
+        required: true
+        default: project-a
+      prd:
+        description: PRD 路径
+        required: true
+        default: prds/project-a/PROJ-001_login.md
+
+env:
+  CI: "true"
+  PROJECT_ID: ${{ github.event.inputs.project || 'project-a' }}
+  PRD_PATH: ${{ github.event.inputs.prd || 'prds/project-a/PROJ-001_login.md' }}
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      prd_or_intermediate: ${{ steps.filter.outputs.prd_or_intermediate }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            prd_or_intermediate:
+              - 'prds/**'
+              - 'tests/intermediate/**'
+
+  generate-pipeline:
+    needs: changes
+    if: needs.changes.outputs.prd_or_intermediate == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: generate-pipeline
+        run: |
+          python3 run.py generate-pipeline \
+            --project "${{ env.PROJECT_ID }}" \
+            --prd "${{ env.PRD_PATH }}"
+
+      - name: Commit generated artifacts
+        run: |
+          git config user.email "ci@auto-dev-test"
+          git config user.name "auto-dev-test bot"
+          git add tests/generated/ tests/intermediate/ || true
+          git diff --staged --quiet || git commit -m "chore: regenerate tests [skip ci]"
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: test
+        run: python3 run.py test --project "${{ env.PROJECT_ID }}" --layer all
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-${{ env.PROJECT_ID }}
+          path: reports/
+          retention-days: 30

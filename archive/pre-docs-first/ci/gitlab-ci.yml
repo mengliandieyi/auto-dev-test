@@ -1,0 +1,114 @@
+# GitLab CI — PRD 驱动的 E2E 自动化测试流水线
+# Phase 2 模板
+#
+# 在 GitLab → Settings → CI/CD → Variables 中配置：
+#   ANTHROPIC_API_KEY
+#   PROJECT_A_BASE_URL
+#   PROJECT_A_CREDENTIALS_USER
+#   PROJECT_A_CREDENTIALS_PASS
+
+stages:
+  - validate
+  - parse
+  - generate
+  - test
+  - report
+
+variables:
+  PROJECT_ID: "project-a"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  npm_config_cache: "$CI_PROJECT_DIR/.cache/npm"
+
+cache:
+  paths:
+    - .cache/pip
+    - .cache/npm
+    - node_modules/
+
+.python_setup: &python_setup
+  before_script:
+    - pip install -r requirements.txt
+
+.node_setup: &node_setup
+  before_script:
+    - npm ci
+    - npx playwright install --with-deps chromium
+
+validate-prd:
+  stage: validate
+  image: python:3.11-slim
+  <<: *python_setup
+  script:
+    - python run.py validate --project $PROJECT_ID --prd $PRD_PATH
+  rules:
+    - changes:
+        - prds/**/*.md
+
+parse-prd:
+  stage: parse
+  image: python:3.11-slim
+  <<: *python_setup
+  script:
+    - python run.py parse --project $PROJECT_ID --prd $PRD_PATH
+  artifacts:
+    paths:
+      - tests/intermediate/
+    expire_in: 1 day
+  rules:
+    - changes:
+        - prds/**/*.md
+
+generate-tests:
+  stage: generate
+  image: python:3.11-slim
+  <<: *python_setup
+  script:
+    - |
+      PRD_ID=$(python -c "
+      import json, glob, sys
+      files = sorted(glob.glob('tests/intermediate/$PROJECT_ID/*_test-cases.json'))
+      if not files: sys.exit(1)
+      print(json.load(open(files[-1]))['prd_id'])
+      ")
+    - python run.py generate --project $PROJECT_ID --prd-id $PRD_ID
+    - |
+      git config user.email "ci@auto-dev-test"
+      git config user.name "auto-dev-test bot"
+      git add tests/generated/ tests/intermediate/
+      git diff --staged --quiet || git commit -m "chore: regenerate tests [skip ci]"
+      git push "https://ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" HEAD:$CI_COMMIT_REF_NAME
+  artifacts:
+    paths:
+      - tests/generated/
+    expire_in: 7 days
+  rules:
+    - changes:
+        - prds/**/*.md
+
+e2e-test:
+  stage: test
+  image: mcr.microsoft.com/playwright:v1.45.0-jammy
+  script:
+    - npm ci
+    - npx playwright test --project $PROJECT_ID
+  artifacts:
+    when: always
+    paths:
+      - reports/
+    expire_in: 30 days
+  rules:
+    - changes:
+        - prds/**/*.md
+        - tests/generated/**/*.spec.ts
+
+generate-report:
+  stage: report
+  image: python:3.11-slim
+  <<: *python_setup
+  script:
+    - python run.py report --project $PROJECT_ID
+  when: always
+  artifacts:
+    paths:
+      - reports/
+    expire_in: 30 days

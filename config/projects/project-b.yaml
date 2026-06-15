@@ -1,0 +1,23 @@
+# 项目 B 配置（规范源：docs/TECH-DESIGN.md §11.2）
+# M1 仅验 yaml 加载与路径隔离，不要求业务 PRD 或跑测试
+
+project_id: project-b
+project_name: "项目B"
+
+base_url: http://127.0.0.1:4174
+
+prd_dir: ./prds/project-b/
+intermediate_dir: ./tests/intermediate/project-b/
+test_output_dir: ./tests/generated/project-b/
+archive_dir: ./tests/archive/project-b/
+
+report:
+  format: text
+  output_dir: ./reports/project-b/
+
+vitest:
+  enabled: false
+
+auth:
+  type: token
+  token_env: PROJECT_B_TOKEN

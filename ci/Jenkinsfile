@@ -1,0 +1,54 @@
+// Jenkinsfile — auto-dev-test M5 模板
+
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'PROJECT_ID', defaultValue: 'project-a', description: '项目 ID')
+        string(name: 'PRD_PATH', defaultValue: 'prds/project-a/PROJ-001_login.md', description: 'PRD 路径')
+        booleanParam(name: 'RUN_GENERATE', defaultValue: true, description: '执行 generate-pipeline')
+    }
+
+    environment {
+        CI = 'true'
+    }
+
+    stages {
+        stage('Setup') {
+            steps {
+                sh 'pip3 install -r requirements.txt'
+                sh 'npm ci'
+                sh 'npx playwright install --with-deps chromium'
+            }
+        }
+
+        stage('Generate Pipeline') {
+            when { expression { return params.RUN_GENERATE } }
+            steps {
+                sh """
+                    python3 run.py generate-pipeline \\
+                        --project ${params.PROJECT_ID} \\
+                        --prd ${params.PRD_PATH}
+                """
+                sh """
+                    git config user.email "ci@auto-dev-test"
+                    git config user.name "auto-dev-test bot"
+                    git add tests/generated/ tests/intermediate/ || true
+                    git diff --staged --quiet || git commit -m "chore: regenerate tests [skip ci]"
+                """
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh "python3 run.py test --project ${params.PROJECT_ID} --layer all"
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
+        }
+    }
+}

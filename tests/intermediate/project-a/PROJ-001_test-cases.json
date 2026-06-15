@@ -1,0 +1,256 @@
+{
+  "prd_id": "PROJ-001",
+  "prd_version": "1.0.0",
+  "project": "project-a",
+  "parsed_at": "2026-06-15T06:32:50.180849+00:00",
+  "generated_at": null,
+  "prd_content_hash": "9efe329dcd748d46138792c49219da0672d224531d6aae41b270714a13cc6850",
+  "source_git_sha": null,
+  "feature_name": "用户登录",
+  "feature": null,
+  "test_data": {},
+  "e2e_test_cases": [
+    {
+      "id": "ETC-001",
+      "source_criterion": "正确的账号密码登录成功后，跳转至 /dashboard 页面，顶部显示用户姓名",
+      "title": "正向登录",
+      "m1_gate": true,
+      "steps": [
+        {
+          "action": "navigate",
+          "testid": null,
+          "target": "/login",
+          "value": null,
+          "type": null
+        },
+        {
+          "action": "fill",
+          "testid": "username-input",
+          "target": null,
+          "value": "test@example.com",
+          "type": null
+        },
+        {
+          "action": "fill",
+          "testid": "password-input",
+          "target": null,
+          "value": "Test1234!",
+          "type": null
+        },
+        {
+          "action": "click",
+          "testid": "login-btn",
+          "target": null,
+          "value": null,
+          "type": null
+        }
+      ],
+      "assertions": [
+        {
+          "type": "url",
+          "expected": "/dashboard",
+          "testid": null,
+          "text": null
+        },
+        {
+          "type": "text_visible",
+          "expected": null,
+          "testid": "user-name",
+          "text": null
+        }
+      ],
+      "type": null
+    },
+    {
+      "id": "ETC-002",
+      "source_criterion": "错误密码登录失败时，原地显示\"账号或密码错误\"提示，密码框内容清空",
+      "title": "错误密码",
+      "m1_gate": false,
+      "steps": [
+        {
+          "action": "navigate",
+          "testid": null,
+          "target": "/login",
+          "value": null,
+          "type": null
+        },
+        {
+          "action": "fill",
+          "testid": "username-input",
+          "target": null,
+          "value": "test@example.com",
+          "type": null
+        },
+        {
+          "action": "fill",
+          "testid": "password-input",
+          "target": null,
+          "value": "WrongPass!",
+          "type": null
+        },
+        {
+          "action": "click",
+          "testid": "login-btn",
+          "target": null,
+          "value": null,
+          "type": null
+        }
+      ],
+      "assertions": [
+        {
+          "type": "text_visible",
+          "expected": null,
+          "testid": "error-message",
+          "text": "账号或密码错误"
+        }
+      ],
+      "type": null
+    }
+  ],
+  "component_test_cases": [
+    {
+      "id": "CTC-001",
+      "source_criterion": "错误密码时 LoginForm 显示错误提示",
+      "title": "错误密码时 LoginForm 显示错误提示",
+      "m1_gate": true,
+      "component": "LoginForm",
+      "component_path": "src/components/LoginForm.tsx",
+      "props": {},
+      "actions": [
+        {
+          "type": "fill",
+          "testid": "username-input",
+          "value": "test@example.com"
+        },
+        {
+          "type": "fill",
+          "testid": "password-input",
+          "value": "WrongPass!"
+        },
+        {
+          "type": "click",
+          "testid": "login-btn",
+          "value": null
+        },
+        {
+          "type": "text_visible",
+          "testid": "error-message",
+          "value": null
+        }
+      ],
+      "assertions": [
+        {
+          "type": "text_visible",
+          "expected": null,
+          "testid": "error-message",
+          "text": "账号或密码错误"
+        }
+      ],
+      "mocks": [
+        {
+          "method": "POST",
+          "path": "/api/auth/login",
+          "status": 401,
+          "body": {
+            "message": "账号或密码错误"
+          }
+        }
+      ]
+    },
+    {
+      "id": "CTC-002",
+      "source_criterion": "账号或密码为空时登录按钮禁用",
+      "title": "账号或密码为空时登录按钮禁用",
+      "m1_gate": false,
+      "component": "LoginForm",
+      "component_path": "src/components/LoginForm.tsx",
+      "props": {},
+      "actions": [
+        {
+          "type": "fill",
+          "testid": "username-input",
+          "value": "test@example.com"
+        },
+        {
+          "type": "fill",
+          "testid": "password-input",
+          "value": "\"\""
+        },
+        {
+          "type": "disabled",
+          "testid": "login-btn",
+          "value": null
+        }
+      ],
+      "assertions": [
+        {
+          "type": "disabled",
+          "expected": null,
+          "testid": "login-btn",
+          "text": null
+        }
+      ],
+      "mocks": []
+    },
+    {
+      "id": "CTC-003",
+      "source_criterion": "账号被锁定时显示锁定提示",
+      "title": "账号被锁定时显示锁定提示",
+      "m1_gate": false,
+      "component": "LoginForm",
+      "component_path": "src/components/LoginForm.tsx",
+      "props": {},
+      "actions": [
+        {
+          "type": "fill",
+          "testid": "username-input",
+          "value": "locked@example.com"
+        },
+        {
+          "type": "fill",
+          "testid": "password-input",
+          "value": "AnyPass1!"
+        },
+        {
+          "type": "click",
+          "testid": "login-btn",
+          "value": null
+        },
+        {
+          "type": "text_visible",
+          "testid": "lock-message",
+          "value": null
+        },
+        {
+          "type": "disabled",
+          "testid": "login-btn",
+          "value": null
+        }
+      ],
+      "assertions": [
+        {
+          "type": "text_visible",
+          "expected": null,
+          "testid": "lock-message",
+          "text": "账号已锁定，请 15 分钟后重试"
+        },
+        {
+          "type": "disabled",
+          "expected": null,
+          "testid": "login-btn",
+          "text": null
+        }
+      ],
+      "mocks": [
+        {
+          "method": "POST",
+          "path": "/api/auth/login",
+          "status": 423,
+          "body": {
+            "message": "账号或密码错误"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+# 项目 A 配置（规范源：docs/TECH-DESIGN.md §11.1）
+# 敏感信息通过环境变量注入，不写入此文件
+
+project_id: project-a
+project_name: "项目A"
+
+base_url: http://127.0.0.1:4173
+health_check_url: /health
+
+auth:
+  type: cookie
+  login_url: /login
+  credentials_env: PROJECT_A_CREDENTIALS
+
+prd_dir: ./prds/project-a/
+intermediate_dir: ./tests/intermediate/project-a/
+test_output_dir: ./tests/generated/project-a/
+archive_dir: ./tests/archive/project-a/
+
+playwright:
+  browsers: [chromium]
+  selector_strategy: data-testid
+  web_server:
+    command: "npx serve tests/fixtures/mock-e2e -l 4173"
+    url: http://127.0.0.1:4173
+  reuse_existing_server: auto
+
+report:
+  format: text
+  output_dir: ./reports/project-a/
+
+vitest:
+  enabled: true
+  pool: forks
+  max_workers: 2
+  component_output_dir: ./tests/generated/project-a/component/
+  frontend_src_alias: "@/"
+  frontend_root: ./tests/fixtures/mock-frontend
+  setup_file: ./vitest.setup.ts
+
+typeui:
+  skill_path: ./design/SKILL.md
+  slug: clean
+
+repos:
+  frontend: ../acme-web
+  backend: ../acme-api

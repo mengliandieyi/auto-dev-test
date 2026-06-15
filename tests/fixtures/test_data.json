@@ -1,0 +1,17 @@
+{
+  "valid": {
+    "username": "test@example.com",
+    "password": "Test1234!"
+  },
+  "invalid": {
+    "password": "WrongPass!"
+  },
+  "locked": {
+    "username": "locked@example.com",
+    "password": "AnyPass1!"
+  },
+  "notexist": {
+    "username": "notexist@example.com",
+    "password": "Test1234!"
+  }
+}

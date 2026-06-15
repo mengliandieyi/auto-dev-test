@@ -1,0 +1,19 @@
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# 运行时产物
+tests/generated/**/meta.db
+reports/
+test-results/
+logs/
+heal/fix-runs/
+tests/generated/jobs.db
+
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+
