@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from api.services import job_runner
@@ -84,6 +84,19 @@ def heal_list_runs(project_id: str, prd_id: Optional[str] = None):
 
     recover_stale_heal_runs()
     return list_heal_runs(project_id, prd_id)
+
+
+@router.post("/runs/prune")
+def heal_prune_runs(
+    project_id: str,
+    prd_id: Optional[str] = None,
+    keep: int = Query(50, ge=1, le=500),
+):
+    validate_project_id(project_id)
+    from heal.store import prune_heal_runs
+
+    removed = prune_heal_runs(keep=keep, project_id=project_id, prd_id=prd_id)
+    return {"removed": removed, "keep": keep}
 
 
 @router.post("/runs/{run_id}/apply")

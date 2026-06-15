@@ -63,6 +63,19 @@ class TestM6Heal(unittest.TestCase):
         assert loaded is not None
         self.assertEqual(loaded["status"], "ANALYZED")
 
+    def test_prune_heal_runs_keeps_recent(self):
+        from heal.store import _now, create_heal_run, init_heal_db, prune_heal_runs, update_heal_run
+        from api.config import JOBS_DB
+
+        init_heal_db(JOBS_DB)
+        ids = []
+        for _ in range(4):
+            run = create_heal_run("project-a", "PROJ-001")
+            update_heal_run(run["id"], status="ANALYZED", finished_at=_now())
+            ids.append(run["id"])
+        removed = prune_heal_runs(keep=2, project_id="project-a", prd_id="PROJ-001")
+        self.assertGreaterEqual(removed, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { api, HealRun } from '../api/client';
 import { ActionButton } from '../components/HelpTip';
+import { formatUtcTime } from '../utils/formatTime';
 
 type Props = {
   projectId: string;
@@ -38,24 +39,6 @@ function formatDiagnosis(run: HealRun): string {
   const category = typeof d.category === 'string' ? CATEGORY_LABEL[d.category] || d.category : '';
   const summary = typeof d.summary === 'string' ? d.summary : '';
   return [category, summary].filter(Boolean).join('：') || '暂无诊断结果';
-}
-
-function formatTime(value?: string): string {
-  if (!value) return '—';
-  const iso = value.replace(' UTC', 'Z').replace(' ', 'T');
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) {
-    return value.replace(' UTC', '');
-  }
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  });
 }
 
 function HealDetail({
@@ -232,7 +215,31 @@ export default function HealPanel({ projectId, prdId }: Props) {
       </div>
 
       <div className="heal-history">
-        <h3 className="heal-subtitle">修复记录</h3>
+        <div className="heal-history-head">
+          <h3 className="heal-subtitle">修复记录</h3>
+          {runs.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setError('');
+                try {
+                  const r = await api.healPruneRuns(projectId, prdId, 50);
+                  setInfo(r.removed > 0 ? `已清理 ${r.removed} 条历史记录` : '无需清理');
+                  load();
+                } catch (e) {
+                  setError(String(e));
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              清理历史
+            </button>
+          )}
+        </div>
         {runs.length === 0 ? (
           <p className="empty">暂无记录。请先运行测试，再点「分析失败原因」。</p>
         ) : (
@@ -250,7 +257,7 @@ export default function HealPanel({ projectId, prdId }: Props) {
                 {runs.map((r) => (
                   <Fragment key={r.id}>
                     <tr className={activeId === r.id ? 'heal-row--active' : ''}>
-                      <td className="muted">{formatTime(r.created_at)}</td>
+                      <td className="muted">{formatUtcTime(r.created_at)}</td>
                       <td>{healStatusBadge(r.status)}</td>
                       <td className="heal-summary-cell">{formatDiagnosis(r)}</td>
                       <td>

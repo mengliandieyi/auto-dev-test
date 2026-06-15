@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, Job, Prd, Report, SkillSummary } from '../api/client';
 import HealPanel from '../components/HealPanel';
 import ArtifactsPanel from '../components/ArtifactsPanel';
 import { MarkdownPreview } from '../components/MarkdownWorkspace';
 import { ActionButton } from '../components/HelpTip';
+import { JobLogSummary } from '../components/JobLogSummary';
 import Select from '../components/Select';
-import { jobEventLabel, parseJobEvents, stripJobEventsFromLog } from '../utils/jobEvents';
+import { formatUtcTime } from '../utils/formatTime';
 
 const COMMAND_LABELS: Record<string, string> = {
   validate: '检查 PRD',
@@ -95,15 +96,9 @@ export default function ProjectDetail() {
   const [devSkillFrontend, setDevSkillFrontend] = useState('');
   const [devSkillBackend, setDevSkillBackend] = useState('');
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const activeJobEvents = useMemo(
-    () => parseJobEvents(activeJob?.log_tail || ''),
-    [activeJob?.log_tail],
-  );
-  const activeJobLogText = useMemo(
-    () => stripJobEventsFromLog(activeJob?.log_tail || ''),
-    [activeJob?.log_tail],
-  );
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+  const [expandedJob, setExpandedJob] = useState<Job | null>(null);
+  const [loadingJobId, setLoadingJobId] = useState<string | null>(null);
 
   const frontendSkills = useMemo(
     () => skills.filter((s) => s.layer === 'frontend' || s.layer === 'fullstack'),
@@ -214,6 +209,25 @@ export default function ProjectDetail() {
       setReportContent(r.content);
     } catch (e) {
       setError(String(e));
+    }
+  };
+
+  const toggleJobDetail = async (jobId: string) => {
+    if (expandedJobId === jobId) {
+      setExpandedJobId(null);
+      setExpandedJob(null);
+      return;
+    }
+    setLoadingJobId(jobId);
+    setError('');
+    try {
+      const job = await api.job(jobId);
+      setExpandedJob(job);
+      setExpandedJobId(jobId);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoadingJobId(null);
     }
   };
 
@@ -343,22 +357,7 @@ export default function ProjectDetail() {
                 </button>
               )}
             </div>
-            {activeJobEvents.length > 0 && (
-              <ol className="job-event-timeline" data-testid="job-event-timeline">
-                {activeJobEvents.map((ev, index) => (
-                  <li
-                    key={`${ev.event}-${index}`}
-                    className={`job-event-chip job-event-chip--${ev.event}`}
-                  >
-                    {jobEventLabel(ev)}
-                  </li>
-                ))}
-              </ol>
-            )}
-            <div className="log-box">{activeJobLogText || activeJob.log_tail || '…'}</div>
-            {activeJob.failure_hint && (
-              <p className="job-failure-hint muted">{activeJob.failure_hint}</p>
-            )}
+            <JobLogSummary job={activeJob} />
           </div>
         )}
       </div>
@@ -394,21 +393,42 @@ export default function ProjectDetail() {
       </div>
 
       <div className="card">
-        <h2 className="card-title">执行记录</h2>
+        <div className="card-head">
+          <h2 className="card-title">执行记录</h2>
+        </div>
         <div className="table-wrap">
           <table className="data-table">
             <thead>
-              <tr><th>操作</th><th>状态</th><th>时间</th></tr>
+              <tr><th>操作</th><th>状态</th><th>时间</th><th /></tr>
             </thead>
             <tbody>
               {jobs.length === 0 ? (
-                <tr><td colSpan={3} className="muted">暂无</td></tr>
+                <tr><td colSpan={4} className="muted">暂无</td></tr>
               ) : jobs.map((j) => (
-                <tr key={j.id}>
-                  <td>{jobLabel(j)}</td>
-                  <td>{statusBadge(j.status)}</td>
-                  <td className="muted">{j.created_at}</td>
-                </tr>
+                <Fragment key={j.id}>
+                  <tr className={expandedJobId === j.id ? 'job-row--active' : ''}>
+                    <td>{jobLabel(j)}</td>
+                    <td>{statusBadge(j.status)}</td>
+                    <td className="muted">{formatUtcTime(j.created_at)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        disabled={loadingJobId === j.id}
+                        onClick={() => toggleJobDetail(j.id)}
+                      >
+                        {loadingJobId === j.id ? '加载中…' : expandedJobId === j.id ? '收起' : '查看'}
+                      </button>
+                    </td>
+                  </tr>
+                  {expandedJobId === j.id && expandedJob && (
+                    <tr className="job-detail-row">
+                      <td colSpan={4}>
+                        <JobLogSummary job={expandedJob} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>

@@ -1749,6 +1749,35 @@ th { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-
   background: color-mix(in srgb, var(--danger, #b91c1c) 8%, var(--surface-elevated, #fff));
 }
 
+.job-log-detail {
+  padding: 0.25rem 0;
+}
+
+.job-detail-row td,
+.heal-detail-row td {
+  background: var(--surface-elevated, #fafafa);
+  border-top: none;
+  padding-top: 0;
+  padding-bottom: 1rem;
+}
+
+.job-row--active td,
+.heal-row--active td {
+  background: color-mix(in srgb, var(--accent, #2563eb) 6%, transparent);
+}
+
+.heal-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.heal-history-head .heal-subtitle {
+  margin: 0;
+}
+
 .heal-intro {
   margin: -0.25rem 0 1rem;
   font-size: 0.875rem;

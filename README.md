@@ -65,10 +65,10 @@ cd admin && npm install && npm run dev
 - **API 设置**（`/settings`）：添加多条 LLM API（名称、接口类型、Key、地址、模型）；每条 profile **独立** Key（`.env` 中 `LLM_KEY_<名称>`）与 `base_url`（`global.yaml`）；支持 Anthropic 官方、DashScope 代理、OpenAI 兼容等
 - **Skill 库**（`/skills`）：左列表 + 右编辑器；上传/拖放 `.md`、新建空白；默认 **预览**，可切 **源码**
 - **项目**：侧栏选项目后 → **工作台** / **环境** / **AI 模型**；支持 **新建项目**（`POST /api/projects`）
-- **工作台**：PRD 列表、流水线（校验→生成→运行）、**业务代码**（前端/后端 Skill 下拉 + 分层生成）、追溯报告、产物浏览、Heal 面板
+- **工作台**：PRD 列表、流水线（校验→生成→运行）、**业务代码**（前端/后端 Skill 下拉 + 分层生成）、追溯报告、产物浏览、Heal 面板；任务日志展示 **job-event 时间线**，执行记录可展开查看历史日志
 - **环境**（`/projects/:id/config`）：被测地址、repos、Vitest、webServer
 - **AI 模型**（`?tab=ai`）：PRD 解析 / 失败分析 / 前端代码 / 后端代码 四项任务绑定 profile（可「使用全局默认」）
-- API：`POST /api/pipeline/*` 返回 **202** 异步入队；`GET /api/pipeline/jobs/{id}` 轮询 `log_tail`
+- API：`POST /api/pipeline/*` 返回 **202** 异步入队；`GET /api/pipeline/jobs/{id}` 轮询 `log_tail`；失败时返回 `failure_hint`；仪表盘 / 修复记录支持 **清理历史**
 
 ## M4 组件测试并行
 

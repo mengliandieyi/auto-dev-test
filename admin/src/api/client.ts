@@ -223,6 +223,11 @@ export const api = {
     }),
   healDiscard: (runId: string) =>
     request<{ discarded: boolean }>(`/heal/runs/${runId}/discard`, { method: 'POST' }),
+  healPruneRuns: (projectId: string, prdId?: string, keep = 50) =>
+    request<{ removed: number; keep: number }>(
+      `/heal/runs/prune?project_id=${projectId}${prdId ? `&prd_id=${prdId}` : ''}&keep=${keep}`,
+      { method: 'POST' },
+    ),
   testCases: (projectId: string, prdId: string) =>
     request<{
       path: string;

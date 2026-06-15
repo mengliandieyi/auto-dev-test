@@ -172,6 +172,56 @@ def recover_stale_heal_runs() -> int:
     return updated
 
 
+def prune_heal_runs(
+    *,
+    keep: int = 50,
+    project_id: Optional[str] = None,
+    prd_id: Optional[str] = None,
+) -> int:
+    """删除较早的终态 heal 记录，保留最近 keep 条（不删 RUNNING）。"""
+    init_heal_db()
+    keep = max(1, min(int(keep), 500))
+    terminal = frozenset({"SUCCESS", "FAILED", "ABORTED", "ANALYZED"})
+    conn = sqlite3.connect(JOBS_DB, timeout=30)
+    conn.row_factory = sqlite3.Row
+    if project_id and prd_id:
+        rows = conn.execute(
+            "SELECT id, status, patch_dir FROM heal_runs WHERE project_id=? AND prd_id=? ORDER BY created_at DESC",
+            (project_id, prd_id),
+        ).fetchall()
+    elif project_id:
+        rows = conn.execute(
+            "SELECT id, status, patch_dir FROM heal_runs WHERE project_id=? ORDER BY created_at DESC",
+            (project_id,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT id, status, patch_dir FROM heal_runs ORDER BY created_at DESC"
+        ).fetchall()
+    conn.close()
+    if len(rows) <= keep:
+        return 0
+    to_delete = [r for r in rows[keep:] if r["status"] in terminal]
+    if not to_delete:
+        return 0
+    ids = [r["id"] for r in to_delete]
+    conn = sqlite3.connect(JOBS_DB, timeout=30)
+    placeholders = ",".join("?" * len(ids))
+    conn.execute(f"DELETE FROM heal_runs WHERE id IN ({placeholders})", ids)
+    conn.commit()
+    conn.close()
+    import shutil
+
+    for r in to_delete:
+        patch_dir = r["patch_dir"]
+        if patch_dir:
+            try:
+                shutil.rmtree(patch_dir, ignore_errors=True)
+            except OSError:
+                pass
+    return len(ids)
+
+
 def read_patch_preview(run_id: str) -> str:
     run = get_heal_run(run_id)
     if not run or not run.get("patch_dir"):
