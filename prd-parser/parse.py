@@ -89,6 +89,6 @@ def _parse_llm(prd_path: Path, project_id: str, project_config: dict) -> dict:
         raise ValueError("LLM 返回无 JSON")
     data = json.loads(raw[start : end + 1])
     data["project"] = project_id
-    from rule_parse import _renumber_and_gate
+    from rule_parse import _renumber_cases
 
-    return _renumber_and_gate(data)
+    return _renumber_cases(data)

@@ -45,8 +45,8 @@ class TestMilestoneAcceptance(unittest.TestCase):
     data = json.loads(p.read_text(encoding="utf-8"))
     self.assertIn("e2e_test_cases", data)
     self.assertIn("component_test_cases", data)
-    self.assertTrue(any(c.get("m1_gate") for c in data["e2e_test_cases"]))
-    self.assertTrue(any(c.get("m1_gate") for c in data["component_test_cases"]))
+    self.assertGreater(len(data["e2e_test_cases"]), 0)
+    self.assertGreater(len(data["component_test_cases"]), 0)
 
   def test_m1_generated_specs_exist(self):
     e2e = list((ROOT / "tests/generated/project-a/e2e").glob("PROJ-001_*.spec.ts"))

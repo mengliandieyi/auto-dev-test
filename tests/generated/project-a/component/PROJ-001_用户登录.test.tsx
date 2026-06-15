@@ -3,7 +3,7 @@
  * PRD: PROJ-001 v1.0.0 (project-a)
  * Hash: 9efe329dcd748d46138792c49219da0672d224531d6aae41b270714a13cc6850
  * Layer: component
- * Generated: 2026-06-15T09:16:57.456035+00:00
+ * Generated: 2026-06-15T10:36:59.875914+00:00
  */
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -29,7 +29,7 @@ describe('用户登录', () => {
     expect(await screen.findByTestId('error-message')).toHaveTextContent("账号或密码错误");
   });
 
-  it.skip('CTC-002: 账号或密码为空时登录按钮禁用', async () => {
+  it('CTC-002: 账号或密码为空时登录按钮禁用', async () => {
     const user = userEvent.setup();
     render(<LoginForm />);
     await user.clear(screen.getByTestId('username-input'));
@@ -39,7 +39,7 @@ describe('用户登录', () => {
     expect(screen.getByTestId('login-btn')).toBeDisabled();
   });
 
-  it.skip('CTC-003: 账号被锁定时显示锁定提示', async () => {
+  it('CTC-003: 账号被锁定时显示锁定提示', async () => {
     const user = userEvent.setup();
     server.use(
       http.post("/api/auth/login", () =>

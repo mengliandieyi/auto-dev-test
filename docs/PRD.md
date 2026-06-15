@@ -98,7 +98,7 @@ status: spec-only
 | **追溯报告** | 验收标准 ↔ 用例 ↔ 执行结果的文本矩阵 |
 | **生成链路** | validate → parse → generate → report（不跑测试） |
 | **占位符** | `parse` 阶段保留 `{{...}}`；`generate` 阶段替换为字面量（见 TECH §3.4） |
-| **M1 门禁用例** | 样例 PRD 中**必须执行且通过**的最小集合：**ETC-001** + **CTC-001**（编号规则见 TECH §3.3） |
+| **样例用例** | 样例 PRD 中所有已生成的 **ETC-*** / **CTC-*** 用例均会执行；总体 **PASS** 须全部通过 |
 
 ---
 
@@ -192,7 +192,7 @@ status: spec-only
 | LLM | **`parse` 需 `ANTHROPIC_API_KEY`**；`generate` 为模板生成、**不调 LLM**；CI 可用已提交 intermediate + spec，跳过 `parse` 仅跑 `generate` + `test` |
 | E2E 鉴权 | M1 fixture 无真实登录；`AuthHelper` 对 cookie/token/basic **skip** |
 | 基准 PRD | `PROJ-001_login.md` |
-| **M1 门禁用例** | **ETC-001**（正向登录）+ **CTC-001**（错误密码提示）必须生成、执行且 **PASS**；其余用例可生成但在报告标 **NOT_COVERED** 或 **SKIP** |
+| **样例用例** | **ETC-001**（正向登录）+ **CTC-001**（错误密码提示）等**全部已生成用例**须执行且 **PASS** |
 
 **验收**
 

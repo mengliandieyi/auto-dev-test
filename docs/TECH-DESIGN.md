@@ -144,7 +144,7 @@ auto-dev-test/
 | `/dashboard` | testid：`user-name`；正向登录后跳转 |
 | `/health` | 返回 200（M6 preflight；M1 可选但建议实现） |
 
-行为（M1 门禁用例）：
+行为（样例 fixture）：
 
 - `test@example.com` + `Test1234!` → 跳转 `/dashboard`，显示姓名  
 - 错误密码 → 停留 `/login`，`error-message` 含「账号或密码错误」，密码框清空  
@@ -225,14 +225,12 @@ auto-dev-test/
 **parse 策略**：Claude API（`ANTHROPIC_API_KEY`）；每条验收标准映射 0–N 用例。  
 **`generate`（M1）**：**确定性模板**，不调用 LLM；读取 intermediate + `test_data.json` 输出 spec。
 
-**用例 ID 与 M1 门禁**（`parse` 后处理，不依赖 LLM 自由发挥）：
+**用例 ID**（`parse` 后处理，不依赖 LLM 自由发挥）：
 
-1. **ETC**：按「验收标准」出现顺序编号，`ETC-001` = 第 1 条验收标准映射的首个 E2E 用例；无 E2E 映射则按 `页面交互` 正向路径生成并标为 `ETC-001`
+1. **ETC**：按「验收标准」出现顺序编号，`ETC-001` = 第 1 条验收标准映射的首个 E2E 用例
 2. **CTC**：按「组件测试」块顺序编号，`CTC-001` = 第 1 个组件用例
-3. 门禁用例在 JSON 标 `m1_gate: true`（`ETC-001`、`CTC-001` 固定为 true）
-4. LLM 返回的 id 若冲突，以**后处理重编号**为准
-
-**M1 门禁**：**ETC-001**（正向登录）与 **CTC-001**（错误密码）须存在且 `m1_gate: true`；其余允许存在但报告标 `NOT_COVERED`。
+3. LLM 返回的 id 若冲突，以**后处理重编号**为准
+4. **全部**已生成用例写入 spec 并执行；追溯报告 **总体 PASS** 须所有 ETC/CTC 均为 PASS
 
 **确定性 CI**：PRD 未变且 intermediate 已提交 → 可 `generate`（幂等 skip）+ `test`，无需 `parse`。
 
@@ -243,7 +241,6 @@ auto-dev-test/
   "id": "ETC-001",
   "source_criterion": "验收标准原文",
   "title": "正向登录",
-  "m1_gate": true,
   "steps": [
     {"action": "navigate", "target": "/login"},
     {"action": "fill", "testid": "username-input", "value": "{{valid.username}}"},
@@ -266,7 +263,6 @@ auto-dev-test/
   "id": "CTC-001",
   "source_criterion": "...",
   "title": "错误密码提示",
-  "m1_gate": true,
   "component": "LoginForm",
   "component_path": "src/components/LoginForm.tsx",
   "actions": [
@@ -352,7 +348,8 @@ JSON 结构（最小）：
 
 ### 3.8 追溯报告 `report.py`
 
-**路径**：`reports/{project}/{prd_id}_traceability.txt`（M2 skeleton：`*.skeleton.txt`）
+**路径**：`reports/{project}/{prd_id}_traceability.txt`（M2 skeleton：`*.skeleton.txt`）  
+**历史**：每次生成 final 前，旧版归档至 `reports/{project}/history/{prd_id}/{YYYYMMDDTHHMMSSZ}_traceability.txt`；Web 工作台可切换「历史版本」。
 
 **格式示例**：
 
@@ -618,6 +615,8 @@ GET /api/reports/{project_id}
 → 200 [{ "prd_id", "kind": "final|skeleton", "updated_at" }]
 
 GET /api/reports/{project_id}/{prd_id}/traceability
+GET /api/reports/{project_id}/{prd_id}/traceability/history
+GET /api/reports/{project_id}/{prd_id}/traceability/history/{snapshot_id}
 → 200 { "content": "...", "kind": "final|skeleton" }
 ```
 

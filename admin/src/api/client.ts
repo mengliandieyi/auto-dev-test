@@ -30,6 +30,12 @@ export type Job = {
   events?: { event: string; command?: string; project?: string; exit_code?: number; message?: string }[];
 };
 export type Report = { prd_id: string; kind: string; updated_at: string; path: string };
+export type ReportHistoryEntry = {
+  snapshot_id: string;
+  label: string;
+  updated_at: string;
+  path: string;
+};
 export type HealRun = {
   id: string;
   project_id: string;
@@ -137,7 +143,13 @@ export const api = {
     request<{ content: string; path: string }>(`/projects/${projectId}/prds/${filename}`),
   reports: (projectId: string) => request<Report[]>(`/reports/${projectId}`),
   traceability: (projectId: string, prdId: string) =>
-    request<{ content: string; kind: string }>(`/reports/${projectId}/${prdId}/traceability`),
+    request<{ content: string; kind: string; snapshot_id?: string }>(`/reports/${projectId}/${prdId}/traceability`),
+  traceabilityHistory: (projectId: string, prdId: string) =>
+    request<{ history: ReportHistoryEntry[] }>(`/reports/${projectId}/${prdId}/traceability/history`),
+  traceabilitySnapshot: (projectId: string, prdId: string, snapshotId: string) =>
+    request<{ content: string; kind: string; snapshot_id: string }>(
+      `/reports/${projectId}/${prdId}/traceability/history/${encodeURIComponent(snapshotId)}`,
+    ),
   jobs: (projectId?: string, limit = 20) =>
     request<Job[]>(
       `/pipeline/jobs?limit=${limit}${projectId ? `&project_id=${projectId}` : ''}`,

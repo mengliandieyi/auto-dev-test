@@ -116,6 +116,9 @@ def generate_report(
         if skeleton:
             out = report_dir / f"{pid}_traceability.skeleton.txt"
         else:
+            from report_history import archive_final_report
+
+            archive_final_report(project_id, pid)
             out = report_dir / f"{pid}_traceability.txt"
             sk = report_dir / f"{pid}_traceability.skeleton.txt"
             if sk.exists():
@@ -154,8 +157,7 @@ def _build_report(data: dict, project_id: str, pw: dict, vt: dict, has_run: bool
             executed += 1
             passed += st == "PASS"
             failed += st == "FAIL"
-        note = "M1 门禁" if etc_match and etc_match.get("m1_gate") else ""
-        rows.append(f"| {i} | {crit[:28]}... | {cid} | {st} | {note} |")
+        rows.append(f"| {i} | {crit[:28]}... | {cid} | {st} | |")
 
     for tc in ctc:
         st = lookup(tc["id"], "component")
@@ -163,15 +165,12 @@ def _build_report(data: dict, project_id: str, pw: dict, vt: dict, has_run: bool
             executed += 1
             passed += st == "PASS"
             failed += st == "FAIL"
-        note = "M1 门禁" if tc.get("m1_gate") else ""
-        rows.append(f"|   | （组件）{tc.get('title', '')} | {tc['id']} | {st} | {note} |")
+        rows.append(f"|   | （组件）{tc.get('title', '')} | {tc['id']} | {st} | |")
 
-    gate_ok = all(lookup(t["id"], "e2e") == "PASS" for t in etc if t.get("m1_gate")) and all(
-        lookup(t["id"], "component") == "PASS" for t in ctc if t.get("m1_gate")
-    )
+    case_statuses = [lookup(t["id"], "e2e") for t in etc] + [lookup(t["id"], "component") for t in ctc]
     overall = "NOT_RUN"
     if has_run:
-        overall = "PASS" if gate_ok else "FAIL"
+        overall = "PASS" if case_statuses and all(s == "PASS" for s in case_statuses) else "FAIL"
     uncovered = max(0, len(criteria) + len(ctc) - executed)
 
     lines = [

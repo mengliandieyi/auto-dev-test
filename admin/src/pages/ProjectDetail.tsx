@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api, Job, Prd, Report, SkillSummary } from '../api/client';
+import { api, Job, Prd, Report, ReportHistoryEntry, SkillSummary } from '../api/client';
 import HealPanel from '../components/HealPanel';
 import ArtifactsPanel from '../components/ArtifactsPanel';
 import RepoChangesPanel from '../components/RepoChangesPanel';
@@ -72,6 +72,9 @@ export default function ProjectDetail() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedPrd, setSelectedPrd] = useState<Prd | null>(null);
   const [reportContent, setReportContent] = useState('');
+  const [activeReportPrdId, setActiveReportPrdId] = useState<string | null>(null);
+  const [reportHistory, setReportHistory] = useState<ReportHistoryEntry[]>([]);
+  const [selectedSnapshot, setSelectedSnapshot] = useState('latest');
   const [activeJob, setActiveJob] = useState<Job | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -132,6 +135,24 @@ export default function ProjectDetail() {
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
+  const openReport = useCallback(async (prdId: string, snapshotId = 'latest') => {
+    setError('');
+    try {
+      const [contentRes, historyRes] = await Promise.all([
+        snapshotId === 'latest'
+          ? api.traceability(projectId, prdId)
+          : api.traceabilitySnapshot(projectId, prdId, snapshotId),
+        api.traceabilityHistory(projectId, prdId),
+      ]);
+      setActiveReportPrdId(prdId);
+      setSelectedSnapshot(snapshotId);
+      setReportHistory(historyRes.history);
+      setReportContent(contentRes.content);
+    } catch (e) {
+      setError(String(e));
+    }
+  }, [projectId]);
+
   const pollJob = useCallback((jobId: string) => {
     stopPolling();
     pollTimerRef.current = setInterval(async () => {
@@ -147,13 +168,22 @@ export default function ProjectDetail() {
             setRepoChangesRefreshKey((k) => k + 1);
           }
           load();
+          const prdId = String(job.args?.prd_id || '');
+          if ((job.command === 'test' || job.command === 'report') && prdId) {
+            setActiveReportPrdId((current) => {
+              if (current === prdId) {
+                void openReport(prdId, 'latest');
+              }
+              return current;
+            });
+          }
         }
       } catch {
         stopPolling();
         setBusy(false);
       }
     }, 1500);
-  }, [load, stopPolling]);
+  }, [load, openReport, stopPolling]);
 
   const runPipeline = async (action: string) => {
     if (!selectedPrd) return;
@@ -203,9 +233,24 @@ export default function ProjectDetail() {
   };
 
   const viewReport = async (prdId: string) => {
+    if (activeReportPrdId === prdId && reportContent) {
+      setActiveReportPrdId(null);
+      setReportContent('');
+      setReportHistory([]);
+      return;
+    }
+    await openReport(prdId, 'latest');
+  };
+
+  const loadReportSnapshot = async (snapshotId: string) => {
+    if (!activeReportPrdId) return;
+    setError('');
     try {
-      const r = await api.traceability(projectId, prdId);
-      setReportContent(r.content);
+      const res = snapshotId === 'latest'
+        ? await api.traceability(projectId, activeReportPrdId)
+        : await api.traceabilitySnapshot(projectId, activeReportPrdId, snapshotId);
+      setSelectedSnapshot(snapshotId);
+      setReportContent(res.content);
     } catch (e) {
       setError(String(e));
     }
@@ -394,16 +439,40 @@ export default function ProjectDetail() {
           <ul className="report-list">
             {reports.map((r) => (
               <li key={r.prd_id}>
-                <button type="button" className="btn" onClick={() => viewReport(r.prd_id)}>
+                <button
+                  type="button"
+                  className={`btn${activeReportPrdId === r.prd_id ? ' btn--active' : ''}`}
+                  onClick={() => viewReport(r.prd_id)}
+                >
                   {r.prd_id}
                 </button>
               </li>
             ))}
           </ul>
         )}
-        {reportContent && (
-          <div className="markdown-workspace markdown-workspace--view" style={{ marginTop: '1rem' }}>
-            <MarkdownPreview content={reportContent} article />
+        {activeReportPrdId && reportContent && (
+          <div className="report-view" data-testid="report-history-panel">
+            {reportHistory.length > 1 && (
+              <div className="report-history-bar">
+                <label className="report-history-label">
+                  历史版本
+                  <select
+                    className="report-history-select"
+                    value={selectedSnapshot}
+                    onChange={(e) => loadReportSnapshot(e.target.value)}
+                  >
+                    {reportHistory.map((h) => (
+                      <option key={h.snapshot_id} value={h.snapshot_id}>
+                        {h.label || h.snapshot_id}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+            <div className="markdown-workspace markdown-workspace--view">
+              <MarkdownPreview content={reportContent} article />
+            </div>
           </div>
         )}
       </div>

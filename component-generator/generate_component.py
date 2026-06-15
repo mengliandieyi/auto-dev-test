@@ -92,9 +92,7 @@ def render_spec(test_cases: dict, project_config: dict) -> str:
     parts.append(f"describe('{test_cases.get('feature_name') or prd_id}', () => {{")
     for tc in cases:
         comp = tc["component"]
-        gate = tc.get("m1_gate", False)
-        test_fn = "it" if gate else "it.skip"
-        parts.append(f"  {test_fn}('{tc['id']}: {tc.get('title', '')}', async () => {{")
+        parts.append(f"  it('{tc['id']}: {tc.get('title', '')}', async () => {{")
         parts.append("    const user = userEvent.setup();")
         if tc.get("mocks"):
             parts.extend(_emit_mock(tc["mocks"][0]))

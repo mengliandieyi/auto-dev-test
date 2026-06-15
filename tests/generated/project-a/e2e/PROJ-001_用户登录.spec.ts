@@ -3,7 +3,7 @@
  * PRD: PROJ-001 v1.0.0 (project-a)
  * Hash: 9efe329dcd748d46138792c49219da0672d224531d6aae41b270714a13cc6850
  * Layer: e2e
- * Generated: 2026-06-15T06:45:14.181900+00:00
+ * Generated: 2026-06-15T10:36:59.863222+00:00
  */
 import { test, expect } from '@playwright/test';
 
@@ -17,7 +17,7 @@ test.describe('用户登录', () => {
     await expect(page.getByTestId('user-name')).toBeVisible();
   });
 
-  test.skip('ETC-002: 错误密码', async ({ page }) => {
+  test('ETC-002: 错误密码', async ({ page }) => {
     await page.goto('/login');
     await page.getByTestId('username-input').fill("test@example.com");
     await page.getByTestId('password-input').fill("WrongPass!");

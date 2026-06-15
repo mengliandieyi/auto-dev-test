@@ -89,9 +89,7 @@ def render_spec(test_cases: dict) -> str:
         f"test.describe('{feature}', () => {{",
     ]
     for tc in cases:
-        gate = tc.get("m1_gate", False)
-        test_fn = "test" if gate else "test.skip"
-        parts.append(f"  {test_fn}('{tc['id']}: {tc.get('title', '')}', async ({{ page }}) => {{")
+        parts.append(f"  test('{tc['id']}: {tc.get('title', '')}', async ({{ page }}) => {{")
         parts.extend(_emit_steps(tc.get("steps") or []))
         parts.extend(_emit_assertions(tc.get("assertions") or []))
         parts.append("  });")

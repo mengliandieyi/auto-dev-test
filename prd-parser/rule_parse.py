@@ -156,13 +156,13 @@ def _build_e2e_cases(criteria: List[str]) -> List[Dict[str, Any]]:
     return cases
 
 
-def _renumber_and_gate(data: dict) -> dict:
+def _renumber_cases(data: dict) -> dict:
     for i, tc in enumerate(data.get("e2e_test_cases") or [], 1):
         tc["id"] = f"ETC-{i:03d}"
-        tc["m1_gate"] = i == 1
+        tc.pop("m1_gate", None)
     for i, tc in enumerate(data.get("component_test_cases") or [], 1):
         tc["id"] = f"CTC-{i:03d}"
-        tc["m1_gate"] = i == 1
+        tc.pop("m1_gate", None)
         if not tc.get("source_criterion"):
             tc["source_criterion"] = tc.get("title", "")
     return data
@@ -199,4 +199,4 @@ def parse_rulebased(prd_path: Path, project_id: str) -> dict:
         "e2e_test_cases": _build_e2e_cases(criteria),
         "component_test_cases": component_cases,
     }
-    return _renumber_and_gate(data)
+    return _renumber_cases(data)

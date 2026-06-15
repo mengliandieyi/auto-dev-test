@@ -1907,6 +1907,35 @@ th { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-
   margin-bottom: 0.5rem;
 }
 
+.report-view {
+  margin-top: 1rem;
+}
+
+.report-history-bar {
+  margin-bottom: 0.75rem;
+}
+
+.report-history-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.report-history-select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  font-size: 0.875rem;
+}
+
+.btn.btn--active {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
 @media (max-width: 900px) {
   .settings-layout {
     grid-template-columns: 1fr;
